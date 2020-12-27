@@ -1,0 +1,5 @@
+[user]
+        name = Harshal Bhatia
+        email = harshalbhatia244@gmail.com
+[credential]
+        helper = osxkeychain

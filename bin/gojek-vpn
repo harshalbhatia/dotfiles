@@ -1,0 +1,77 @@
+#!/bin/bash
+#CLI VPN connection for macOS
+#Created to overcome  macOS Mojave bug
+#OSAScript "inspired" from  https://github.com/alfredo/aws_vpn/blob/master/vpnconnection.scpt
+
+
+if [ ! -f ~/.gojek.mobileconfig ]; then
+    echo Download your .mobileconfig from https://gate.gojek.co.id/ and
+    echo save it as ~/.gojek.mobileconfig.
+    echo Eg. cp Downloads/email@address.com.mobileconfig ~/.gojek.mobileconfig
+    exit
+fi
+
+vpn_name=($(cat ~/.gojek.mobileconfig | awk '{print $0;}' |grep -A1 UserDefinedName|grep string |cut -f 2 -d\> |cut -f 1 -d\< | tr ' ' _))
+
+if (( $# != 1 )); then
+
+   echo Usage: $0 VPN-ID
+   echo Eg: $0 1
+
+   echo List of your VPNs and their IDs
+
+
+   echo ID\| "VPN Name"
+   for index in `seq 0 $((${#vpn_name[@]}-1))`; do
+    echo $index  \| "${vpn_name[$index]}" "${vpn_host[index]}"
+   done
+
+exit
+fi
+
+token="$(cat ~/.vpntoken)"
+vpnname=$(echo ${vpn_name[$1]}|tr _ ' ')
+vpn_otp=$(oathtool --totp -b $token)
+osx_vpn_name="${vpnname}, Not Connected"
+
+
+/usr/bin/osascript <<EOF 2>&1 |grep -v GetInputSourceEnabledPrefs
+tell application "System Preferences"
+        reveal pane "Network"
+        activate
+
+        tell application "System Events"
+            tell process "System Preferences"
+                tell window 1
+                    repeat with r in rows of table 1 of scroll area 1
+
+                        if (value of attribute "AXValue" of static text 1 of r as string) is equal to "$osx_vpn_name" then
+                            select r
+                        end if
+                    end repeat
+
+                    tell group 1
+                        click button "Authentication Settings…"
+                    end tell
+
+                    tell sheet 1
+                        set focused of text field 2 to true
+                        set value of text field 2 to "$vpn_otp"
+                        click button "Ok"
+                    end tell
+
+                    click button "Apply"
+
+			delay 1
+                    tell group 1
+                        click button "Connect"
+		    end tell
+
+                end tell
+            end tell
+        end tell
+
+        quit
+end tell
+EOF
+
