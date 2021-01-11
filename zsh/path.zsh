@@ -5,12 +5,6 @@ function _prepend_path() {
 	fi
 }
 
-
-export GOPATH="$HOME/go"
-export PATH="$GOPATH/bin:$PATH"
-export PATH="/Users/hb/bin:$PATH"
-export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
-
 # Construct $PATH
 # 1. Default paths
 # 2. ./node_modules/.bin - shorcut to run locally installed Node bins

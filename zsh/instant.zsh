@@ -24,6 +24,3 @@ source ~/powerlevel10k/powerlevel10k.zsh-theme
 # Load NVM
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-# rbenv
-eval "$(rbenv init -)"
