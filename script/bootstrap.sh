@@ -190,12 +190,50 @@ install_z() {
   fi
 }
 
+install_brew_deps() {
+  user "Do you want to install Brewfile?\n\
+        [Y]es, [n]o?"
+        read -n 1 action
+
+        case "$action" in
+          n )
+            brew=false;;
+          * )
+            brew=true;;
+        esac
+
+  if [ "$brew" == "true" ]
+    then
+      info 'installing brew deps'
+      brew bundle
+      success "Installed Brewfile"
+    fi
+}
+
+ssh_keygen() {
+  info 'generating ssh keys'
+
+  file="$HOME/.ssh/id_rsa.pub"
+  if [ ! -f "$file" ]; then
+    ssh-keygen -q -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa <<<y 2>&1 >/dev/null
+    eval "$(ssh-agent -s)"
+  fi
+
+
+  success 'copyied ssh key to clipboard'
+
+  pbcopy < ~/.ssh/id_rsa.pub
+  cat "$file"
+}
+
 setup_gitconfig
 install_dotfiles
 install_oh_my_zsh
 install_powerline_fonts
 install_nvm
 install_z
+install_brew_deps
+ssh_keygen
 
 # If we're on a Mac, let's install and setup homebrew.
 if [ "$(uname -s)" == "Darwin" ]
