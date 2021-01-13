@@ -9,7 +9,7 @@ alias .....="cd ../../../.."
 alias -- -="cd -"
 
 # Shortcuts
-alias ls="ls --color"
+# alias ls="ls --color"
 alias -- +x="chmod +x"
 alias o="open"
 alias oo="open ."
