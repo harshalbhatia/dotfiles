@@ -14,7 +14,7 @@ export ZSH="/Users/harshal/.oh-my-zsh"
 # Fallback theme (if Powerlevel10k is not present)
 ZSH_THEME="robbyrussell"
 
-plugins=(git kubectl zsh-autosuggestions zsh-syntax-highlighting history-substring-search)
+plugins=(git kubectl history-substring-search zsh-autosuggestions zsh-syntax-highlighting)
 
 source $ZSH/oh-my-zsh.sh
 source ~/powerlevel10k/powerlevel10k.zsh-theme
