@@ -36,6 +36,7 @@ alias be="bundle exec"
 alias pd="proctor describe"
 alias pe="proctor execute"
 alias kx="kubectx"
+alias tf="terraform"
 
 # Make a directory and cd to it
 function take() {

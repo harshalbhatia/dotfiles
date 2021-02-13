@@ -1,22 +1,22 @@
 source ~/dotfiles/zsh/instant.zsh
-source ~/dotfiles/zsh/env.zsh
+# source ~/dotfiles/zsh/env.zsh
 source ~/dotfiles/zsh/path.zsh
 source ~/dotfiles/zsh/aliases.zsh
 source ~/dotfiles/zsh/completions.zsh
 source ~/dotfiles/zsh/key-bindings.zsh
 
 # Do not overwrite files when redirecting using ">". Note that you can still override this with ">|"
-set -o noclobber
+# set -o noclobber
 
 # Enable extended glob
-setopt extendedglob
+# setopt extendedglob
 
-# Remove older duplicate entries from history
-setopt hist_ignore_all_dups
-# Remove superfluous blanks from history items
-setopt hist_reduce_blanks
-# Show command with history expansion to user before running it
-setopt hist_verify
+# # Remove older duplicate entries from history
+# setopt hist_ignore_all_dups
+# # Remove superfluous blanks from history items
+# setopt hist_reduce_blanks
+# # Show command with history expansion to user before running it
+# setopt hist_verify
 
 # Terminal title
 DISABLE_AUTO_TITLE="true"
@@ -49,8 +49,8 @@ _fzf_compgen_path() {
 _fzf_compgen_dir() {
   fd --type d --hidden --exclude ".git" . "$1"
 }
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-[ -f ~/z/z.sh ] && source ~/z/z.sh
+# [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+# [ -f ~/z/z.sh ] && source ~/z/z.sh
 
 # Load extra (private) settings
 # [ -f ~/.zshlocal ] && source ~/.zshlocal

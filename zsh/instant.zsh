@@ -8,8 +8,10 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
+# Ignore permission issues
+export ZSH_DISABLE_COMPFIX=true
 # Path to your oh-my-zsh installation. // TODO: Remove hardcoding
-export ZSH="/Users/harshal/.oh-my-zsh"
+export ZSH="/Users/hb/.oh-my-zsh"
 
 # Fallback theme (if Powerlevel10k is not present)
 ZSH_THEME="robbyrussell"

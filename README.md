@@ -20,4 +20,4 @@ Just run `./script/bootstrap.sh` 🚀
  - [ ] function for avoid repetetive calling of fonts
  - [ ] execute_after_prompt()
  - [ ] execute_if_not_dir(dir, cmd)
- 
+ - [ ] brew is not installed before brewfile installation  
