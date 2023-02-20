@@ -73,3 +73,8 @@ function traceroute-mapper {
   open "https://stefansundin.github.io/traceroute-mapper/?trace=$(traceroute -q1 $*)"
 }
 
+# vim to nvim
+
+if [ -x "$(command -v vim)" ]; then
+  alias vim="nvim"
+fi
