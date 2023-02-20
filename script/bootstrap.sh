@@ -144,13 +144,13 @@ install_oh_my_zsh() {
       echo "$FILE already exists."
   else 
       echo "$FILE does not exist. Installing"
-      git clone https://github.com/ohmyzsh/ohmyzsh.git ~/.oh-my-zsh
+      git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git ~/.oh-my-zsh
       # Plugins
-      git clone https://github.com/zsh-users/zsh-history-substring-search ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-history-substring-search
-      git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions
-      git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-      git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
-      git clone https://github.com/lukechilds/zsh-nvm ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-nvm
+      git clone --depth=1 https://github.com/zsh-users/zsh-history-substring-search ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-history-substring-search
+      git clone --depth=1 https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions
+      git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+      git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+      git clone --depth=1 https://github.com/lukechilds/zsh-nvm ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-nvm
       git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
   fi
 }
@@ -180,7 +180,7 @@ install_nvm() {
   else 
       echo "$FILE does not exist. Installing"
       export NVM_DIR="$HOME/.nvm" && (
-      git clone https://github.com/nvm-sh/nvm.git "$NVM_DIR"
+      git clone --depth=1 https://github.com/nvm-sh/nvm.git "$NVM_DIR"
       cd "$NVM_DIR"
       git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`
     ) && \. "$NVM_DIR/nvm.sh"
@@ -195,7 +195,7 @@ install_z() {
       echo "$FILE already exists."
   else 
       echo "$FILE does not exist. Installing"
-      git clone https://github.com/rupa/z ~/z
+      git clone --depth=1 https://github.com/rupa/z ~/z
   fi
 }
 
