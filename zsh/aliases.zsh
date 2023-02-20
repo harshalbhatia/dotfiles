@@ -75,6 +75,6 @@ function traceroute-mapper {
 
 # vim to nvim
 
-if [ -x "$(command -v vim)" ]; then
+if [ -x "$(command -v nvim)" ]; then
   alias vim="nvim"
 fi
