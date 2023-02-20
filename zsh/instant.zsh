@@ -10,8 +10,8 @@ fi
 
 # Ignore permission issues
 export ZSH_DISABLE_COMPFIX=true
-# Path to your oh-my-zsh installation. // TODO: Remove hardcoding
-export ZSH="/Users/hb/.oh-my-zsh"
+# Path to your oh-my-zsh installation.
+export ZSH="$HOME/.oh-my-zsh"
 
 # Fallback theme (if Powerlevel10k is not present)
 ZSH_THEME="robbyrussell"
