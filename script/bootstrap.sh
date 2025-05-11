@@ -27,7 +27,12 @@ fail () {
   exit
 }
 
-setup_gitconfig () {
+reload_zshrc() {
+  info 'reload zshrc'
+  zsh
+}
+
+setup_gitconfig() {
   if ! [ -f git/gitconfig.local.symlink ]
   then
     info 'setup gitconfig'
@@ -142,7 +147,7 @@ install_oh_my_zsh() {
   FILE=~/.oh-my-zsh
   if [ -d "$FILE" ]; then
       echo "$FILE already exists."
-  else 
+  else
       echo "$FILE does not exist. Installing"
       git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git ~/.oh-my-zsh
       # Plugins
@@ -177,7 +182,7 @@ install_nvm() {
   FILE=$HOME/.nvm
   if [ -d "$FILE" ]; then
       echo "$FILE already exists."
-  else 
+  else
       echo "$FILE does not exist. Installing"
       export NVM_DIR="$HOME/.nvm" && (
       git clone --depth=1 https://github.com/nvm-sh/nvm.git "$NVM_DIR"
@@ -193,7 +198,7 @@ install_z() {
   FILE=~/z
   if [ -d "$FILE" ]; then
       echo "$FILE already exists."
-  else 
+  else
       echo "$FILE does not exist. Installing"
       git clone --depth=1 https://github.com/rupa/z ~/z
   fi

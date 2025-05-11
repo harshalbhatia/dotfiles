@@ -3,6 +3,7 @@
 Just run `./script/bootstrap.sh` 🚀
 
 ### TODO
+ - [ ] set caps lock to esc
  - [x] move bin
  - [x] automate linking
  - [x] link bin

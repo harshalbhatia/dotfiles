@@ -52,7 +52,7 @@ function cdf() {
 function gr() {
   cd "./$(git rev-parse --show-cdup 2>/dev/null)" 2>/dev/null
 }
- 
+
 # git clone and cd to a repo directory
 function clone() {
   git clone $@

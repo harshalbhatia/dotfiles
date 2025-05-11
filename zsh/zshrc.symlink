@@ -54,3 +54,51 @@ _fzf_compgen_dir() {
 
 # Load extra (private) settings
 # [ -f ~/.zshlocal ] && source ~/.zshlocal
+
+export PATH="/opt/homebrew/opt/openssl@3/bin:$PATH"
+export PATH="/opt/homebrew/opt/openssl@3/bin:$PATH"
+export PKG_CONFIG_PATH="/opt/homebrew/opt/openssl@3/lib/pkgconfig"
+export PATH="$HOME/go/bin:$PATH"
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/opt/homebrew/anaconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/opt/homebrew/anaconda3/etc/profile.d/conda.sh" ]; then
+        . "/opt/homebrew/anaconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="/opt/homebrew/anaconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+
+
+ osh() {
+    last_command=$(fc -ln -1)
+    last_command=$(echo "$last_command" | sed 's/^[[:space:]]*//')
+    last_output=$(eval "$last_command")
+    retVal=$?
+    if [ $retVal -ne 0 ]; then
+        osh_py "input" "$last_command" "output" "$last_output" "return_code" "$retVal"
+    else
+        echo "Your last command ran successfully. Please summon me only when something goes wrong."
+    fi
+}
+export PATH="/opt/homebrew/opt/openjdk@11/bin:$PATH"
+
+test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
+
+
+# pnpm
+export PNPM_HOME="/Users/hb/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+# Added by Windsurf
+export PATH="/Users/hb/.codeium/windsurf/bin:$PATH"
