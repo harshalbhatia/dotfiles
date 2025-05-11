@@ -18,6 +18,7 @@ displayUsageAndExit() {
 	echo "Options:"
 	echo "  -e, --edit    Open dotfiles directory for editing"
 	echo "  -h, --help    Show this help message and exit"
+	echo "  -b, --brew    Update Brewfile with current brew setup"
 	exit
 }
 
@@ -28,6 +29,12 @@ while test $# -gt 0; do
 			;;
 		"-e"|"--edit")
 			exec "$EDITOR" "$dotfilesDirectory"
+			exit
+			;;
+		"-b"|"--brew")
+			echo "› Updating Brewfile in dotfiles directory"
+			brew bundle dump --file="$dotfilesDirectory/Brewfile" --force
+			echo "› Brewfile updated"
 			exit
 			;;
 		*)
