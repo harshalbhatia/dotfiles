@@ -135,11 +135,24 @@ install_dotfiles () {
 
   local overwrite_all=false backup_all=false skip_all=false
 
-  for src in $(find -H "$DOTFILES_ROOT" -maxdepth 2 -name '*.symlink' -not -path '*.git*')
+  for src in $(find -H "$DOTFILES_ROOT" -maxdepth 2 -name '*.symlink' ! -path '*.git*')
   do
     dst="$HOME/.$(basename "${src%.*}")"
     link_file "$src" "$dst"
   done
+
+  # Create .config directory if it doesn't exist
+  if [ ! -d "$HOME/.config" ]; then
+    mkdir -p "$HOME/.config"
+    success "created ~/.config directory"
+  fi
+
+  # Link Ghostty config
+  if [ -d "$DOTFILES_ROOT/ghostty" ]; then
+    mkdir -p "$HOME/.config/ghostty"
+    link_file "$DOTFILES_ROOT/ghostty/config" "$HOME/.config/ghostty/config"
+    success "linked ghostty config"
+  fi
 }
 
 install_oh_my_zsh() {
@@ -254,7 +267,7 @@ ssh_keygen
 if [ "$(uname -s)" == "Darwin" ]
 then
   info "installing dependencies"
-  if source bin/dot | while read -r data; do info "$data"; done
+  if source bin/dot 2>&1 | tee /tmp/dotfiles-dot | while read -r data; do info "$data"; done
   then
     success "dependencies installed"
   else
