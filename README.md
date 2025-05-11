@@ -1,5 +1,8 @@
+# Manual Tasks
+- set caps lock to esc
+- mackup backup and restore
+
 # TODO
- - [ ] set caps lock to esc
  - [x] move bin
  - [x] automate linking
  - [x] link bin
@@ -8,11 +11,9 @@
  - [x] install powerline fonts
  - [x] brewfile setup
  - [ ] sync iterm settings
- - [ ] mackup?
  - [ ] global ignore .history
  - [ ] n vs nvm for perf: https://blog.mattclemente.com/2020/06/26/oh-my-zsh-slow-to-load.html
- - [ ] prompt for hostname setup
- - [ ] iterm theme
+ - [x] prompt for hostname during setup
  - [ ] docs
  - [ ] function for avoid repetetive calling of fonts
  - [ ] execute_after_prompt()

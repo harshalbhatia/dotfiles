@@ -27,6 +27,61 @@ fail () {
   exit
 }
 
+# Function to prompt for and set hostname on macOS
+setup_hostname() {
+  if [ "$(uname -s)" == "Darwin" ]; then
+    info 'checking hostname configuration'
+
+    current_computer_name=$(scutil --get ComputerName)
+    current_localhost_name=$(scutil --get LocalHostName)
+    current_host_name=$(scutil --get HostName)
+
+    info "Current ComputerName: $current_computer_name"
+    info "Current LocalHostName: $current_localhost_name"
+    info "Current HostName: $current_host_name (Note: This might be unset)"
+
+    user "Do you want to set/update the hostname for this Mac? [y/N]"
+    read -n 1 -r reply
+    echo # Move to a new line
+
+    if [[ "$reply" =~ ^[Yy]$ ]]; then
+      user "Enter the new hostname (e.g., MyMacBookPro):"
+      read -r new_hostname
+
+      if [ -z "$new_hostname" ]; then
+        info "No hostname entered, skipping update."
+        return
+      fi
+
+      info "Attempting to set hostname to '$new_hostname'. You may be prompted for your password."
+      # Refresh sudo timestamp
+      sudo -v
+      # Loop until sudo credentials are correct.
+      while true; do
+        # Check if we can run sudo commands.
+        sudo -n true 2>/dev/null
+        if [ $? -eq 0 ]; then
+          break
+        fi
+        user "Please enter your sudo password:"
+        sudo -v # Prompt for password
+      done
+
+
+      if sudo scutil --set ComputerName "$new_hostname" && \\
+         sudo scutil --set LocalHostName "$new_hostname" && \\
+         sudo scutil --set HostName "$new_hostname"; then
+        success "Hostname successfully set to '$new_hostname'."
+        info "Note: You may need to restart your terminal or even reboot for all applications to see the change."
+      else
+        fail "Failed to set hostname. Please check permissions or run manually."
+      fi
+    else
+      info "Skipping hostname setup."
+    fi
+  fi
+}
+
 reload_zshrc() {
   info 'reload zshrc'
   zsh
@@ -253,6 +308,8 @@ ssh_keygen() {
   cat "$file"
 }
 
+# Call setup_hostname early in the script
+setup_hostname
 setup_gitconfig
 install_dotfiles
 install_oh_my_zsh
