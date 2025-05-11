@@ -51,7 +51,3 @@ export BAT_THEME="DarkNeon"
 
 # Homebrew install badge: beer sucks, coffee rules
 # export HOMEBREW_INSTALL_BADGE='☕'
-
-# Disable Gatsby telemetry
-# https://www.gatsbyjs.org/docs/telemetry/
-GATSBY_TELEMETRY_DISABLED=1
