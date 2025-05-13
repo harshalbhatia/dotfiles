@@ -10,53 +10,147 @@ set -e
 parentDirectory="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P)"
 dotfilesDirectory="$(cd "$( dirname "$parentDirectory" )" && pwd -P)"
 
+# Chime configuration
+_CHIME_SCRIPT_NAME="ten_minute_chime.sh"
+_CHIME_SCRIPT_PATH_ABS="${dotfilesDirectory}/bin/${_CHIME_SCRIPT_NAME}"
+_LAUNCHD_LABEL="com.dotfiles.tenminutechime"
+_LAUNCHD_PLIST_PATH="${HOME}/Library/LaunchAgents/${_LAUNCHD_LABEL}.plist"
+
 displayUsageAndExit() {
 	echo "dot -- dotfiles management"
 	echo ""
-	echo "Usage: dot [options]"
+	echo "Usage: dot [command]"
 	echo ""
-	echo "Options:"
-	echo "  -e, --edit    Open dotfiles directory for editing"
-	echo "  -h, --help    Show this help message and exit"
-	echo "  -b, --brew    Update Brewfile with current brew setup"
-	exit
+	echo "Commands:"
+	echo "  edit          Open dotfiles directory for editing (was -e)"
+	echo "  brew          Update Brewfile with current brew setup (was -b)"
+	echo "  sound enable  Enable the 10-minute sound chime"
+	echo "  sound disable Disable the 10-minute sound chime"
+	echo "  sound status  Check the status of the 10-minute sound chime"
+	echo "  help          Show this help message and exit (was -h)"
+	echo "  (no command)  Run default setup (macOS defaults, Homebrew, script/install)"
+	exit 0
 }
 
-while test $# -gt 0; do
-	case "$1" in
-		"-h"|"--help")
-			displayUsageAndExit
-			;;
-		"-e"|"--edit")
-			exec "$EDITOR" "$dotfilesDirectory"
-			exit
-			;;
-		"-b"|"--brew")
-			echo "› Updating Brewfile in dotfiles directory"
-			brew bundle dump --file="$dotfilesDirectory/Brewfile" --force
-			echo "› Brewfile updated"
-			exit
-			;;
-		*)
-			echo "Invalid option: $1"
-			displayUsageAndExit
-			;;
-	esac
-	shift
-done
+mainCommand="$1"
+shift || true # Shift even if no arguments, to simplify logic later
 
-export ZSH=$HOME/dotfiles
+case "$mainCommand" in
+	"help"|"-h"|"--help")
+		displayUsageAndExit
+		;;
+	"edit"|"-e"|"--edit")
+		exec "${EDITOR:-vim}" "$dotfilesDirectory"
+		exit
+		;;
+	"brew"|"-b"|"--brew")
+		echo "› Updating Brewfile in dotfiles directory"
+		brew bundle dump --file="$dotfilesDirectory/Brewfile" --force
+		echo "› Brewfile updated"
+		exit
+		;;
+	"sound")
+		soundSubCommand="$1"
+		shift || true
+		case "$soundSubCommand" in
+			"enable")
+				if [ -f "$_LAUNCHD_PLIST_PATH" ]; then
+					echo "Chime launchd agent already exists at $_LAUNCHD_PLIST_PATH."
+					# Optionally, try to load it if not loaded
+					if ! launchctl list | grep -q "$_LAUNCHD_LABEL"; then
+						echo "Attempting to load existing agent..."
+						launchctl load "$_LAUNCHD_PLIST_PATH"
+						echo "Agent loaded."
+					else
+						echo "Agent is already loaded."
+					fi
+					exit 0
+				fi
 
-# Set macOS defaults
-$ZSH/macos/set-defaults.sh
+				echo "› Enabling 10-minute sound chime..."
+				cat > "$_LAUNCHD_PLIST_PATH" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${_LAUNCHD_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>${_CHIME_SCRIPT_PATH_ABS}</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Minute</key><integer>20</integer></dict>
+        <dict><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Minute</key><integer>40</integer></dict>
+        <dict><key>Minute</key><integer>50</integer></dict>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+EOF
+				launchctl load "$_LAUNCHD_PLIST_PATH"
+				echo "✓ 10-minute sound chime enabled. Plist created at $_LAUNCHD_PLIST_PATH"
+				;;
+			"disable")
+				echo "› Disabling 10-minute sound chime..."
+				if [ -f "$_LAUNCHD_PLIST_PATH" ]; then
+					launchctl unload "$_LAUNCHD_PLIST_PATH"
+					rm "$_LAUNCHD_PLIST_PATH"
+					echo "✓ 10-minute sound chime disabled. Plist removed."
+				else
+					echo "Chime launchd agent plist not found at $_LAUNCHD_PLIST_PATH. Nothing to disable."
+				fi
+				;;
+			"status")
+				echo "› Checking 10-minute sound chime status..."
+				if [ -f "$_LAUNCHD_PLIST_PATH" ]; then
+					echo "  Plist file found: $_LAUNCHD_PLIST_PATH"
+					if launchctl list | grep -q "$_LAUNCHD_LABEL"; then
+						echo "  Chime is LOADED and ENABLED."
+					else
+						echo "  Chime is NOT LOADED (but plist exists). It might be disabled or failed to load."
+					fi
+				else
+					echo "  Plist file NOT found: $_LAUNCHD_PLIST_PATH"
+					echo "  Chime is DISABLED."
+				fi
+				;;
+			*)
+				echo "Invalid sound command: $soundSubCommand"
+				displayUsageAndExit
+				;;
+		esac
+		exit
+		;;
+	""|null) # No command given, run default actions
+		export ZSH="$dotfilesDirectory" # Was $HOME/dotfiles, ensured consistency
 
-# Install homebrew
-$ZSH/homebrew/install.sh 2>&1
+		# Set macOS defaults
+		echo "› Setting macOS defaults..."
+		"$ZSH/macos/set-defaults.sh"
 
-# Upgrade homebrew
-echo "› brew update"
-brew update
+		# Install homebrew
+		echo "› Ensuring Homebrew is installed..."
+		"$ZSH/homebrew/install.sh" # Removed 2>&1 for more visibility
 
-# Install software
-echo "› $ZSH/script/install"
-$ZSH/script/install
+		# Upgrade homebrew
+		echo "› brew update"
+		brew update
+
+		# Install software
+		echo "› $ZSH/script/install"
+		"$ZSH/script/install"
+		echo "✓ Dotfiles setup complete."
+		exit
+		;;
+	*)
+		echo "Invalid command: $mainCommand"
+		displayUsageAndExit
+		;;
+esac
