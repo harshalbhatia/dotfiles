@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Convenience wrapper for power-app-manager
+# Usage: pam [command]
+
+exec "$(dirname "$0")/power-app-manager" "$@"

@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Energy Usage Analyzer
+# Identifies apps with high energy consumption to help decide what to add to power management
+
+echo "🔋 Energy Usage Analysis"
+echo "======================="
+echo "Current time: $(date)"
+echo
+
+# Method 1: Using top to get CPU-intensive processes
+echo "📊 Top CPU-consuming processes (likely high energy impact):"
+echo "---------------------------------------------------------"
+top -l 1 -o cpu -stats pid,command,cpu,mem | head -15 | tail -10
+echo
+
+# Method 2: Use ps to look for specific app types known to be energy intensive
+echo "🔍 Known energy-intensive app categories currently running:"
+echo "--------------------------------------------------------"
+
+echo "📱 Communication Apps:"
+ps aux | grep -E "(Slack|Discord|WhatsApp|Telegram|Zoom|Teams|Skype)" | grep -v grep | awk '{print $11}' | sort -u
+
+echo
+echo "☁️  Cloud Sync Apps:"
+ps aux | grep -E "(Dropbox|OneDrive|Google Drive|MEGA|Sync|iCloud)" | grep -v grep | awk '{print $11}' | sort -u
+
+echo
+echo "🎮 Media & Entertainment:"
+ps aux | grep -E "(Spotify|Music|VLC|Chrome|Firefox|Safari)" | grep -v grep | awk '{print $11}' | sort -u
+
+echo
+echo "💻 Development Tools:"
+ps aux | grep -E "(Xcode|Docker|Android|Studio|Code|Terminal)" | grep -v grep | awk '{print $11}' | sort -u
+
+echo
+echo "🤖 AI & Machine Learning:"
+ps aux | grep -E "(Rewind|Copilot|ChatGPT|AI|ML)" | grep -v grep | awk '{print $11}' | sort -u
+
+echo
+echo "📊 System Resource Usage (top processes by memory - often correlates with energy):"
+echo "--------------------------------------------------------------------------------"
+ps aux --sort=-%mem | head -10 | awk '{printf "%-20s %s%%\n", $11, $4}'
+
+echo
+echo "💡 Recommendations:"
+echo "==================="
+echo "Apps to consider adding to power management:"
+
+# Find high-memory processes that aren't system processes
+echo "- High memory usage apps (may have high energy impact):"
+ps aux --sort=-%mem | head -15 | grep -E "Applications|\.app" | awk '{print "  •", $11}' | head -5
+
+echo
+echo "- Currently configured in power manager:"
+if [[ -f ~/.config/power-app-manager/apps.conf ]]; then
+    source ~/.config/power-app-manager/apps.conf
+    for app in "${MANAGED_APPS[@]}"; do
+        app_name=$(echo "$app" | cut -d'|' -f1)
+        echo "  ✓ $app_name"
+    done
+else
+    echo "  (No configuration found)"
+fi
+
+echo
+echo "🔧 To add an app: ./bin/pam add"
+echo "📊 To see current status: ./bin/pam status"

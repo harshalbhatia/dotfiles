@@ -1,0 +1,766 @@
+#!/bin/bash
+
+# Power-Aware App Manager
+# Manages multiple apps based on power state (battery vs AC power)
+# Apps are stopped after a delay when switching to battery to handle power outages
+
+# Configuration file path
+CONFIG_FILE="$HOME/.config/power-app-manager/apps.conf"
+LOG_FILE="$HOME/Library/Logs/power-app-manager.log"
+STATE_FILE="$HOME/.config/power-app-manager/state"
+RUNNING_APPS_STATE="$HOME/.config/power-app-manager/running_apps_state"
+RUNNING_AGENTS_STATE="$HOME/.config/power-app-manager/running_agents_state"
+APPS_CACHE_FILE="$HOME/.config/power-app-manager/available_apps.cache"
+
+# Default settings
+DEFAULT_DELAY_MINUTES=5  # Default delay before stopping apps on battery
+DEFAULT_APPS=()
+
+# Default LaunchAgents to manage (updaters and services)
+DEFAULT_LAUNCHAGENTS=(
+    "com.dropbox.DropboxUpdater.wake"
+    "keybase.updater"
+    "keybase.service"
+    "keybase.kbfs"
+)
+
+# Ensure config directory exists
+mkdir -p "$(dirname "$CONFIG_FILE")"
+mkdir -p "$(dirname "$LOG_FILE")"
+mkdir -p "$(dirname "$STATE_FILE")"
+
+# Function to log messages
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+}
+
+# Function to discover installed applications
+discover_apps() {
+    local cache_age_hours=24
+    local refresh_cache=false
+
+    # Check if cache exists and is recent
+    if [[ -f "$APPS_CACHE_FILE" ]]; then
+        local cache_age_seconds=$(( $(date +%s) - $(stat -f %m "$APPS_CACHE_FILE" 2>/dev/null || echo 0) ))
+        local cache_age_hours_actual=$(( cache_age_seconds / 3600 ))
+        if [[ $cache_age_hours_actual -gt $cache_age_hours ]]; then
+            refresh_cache=true
+        fi
+    else
+        refresh_cache=true
+    fi
+
+    if [[ "$refresh_cache" == "true" ]]; then
+        log_message "Discovering installed applications..."
+
+        # Create temporary file for app discovery
+        local temp_file=$(mktemp)
+
+        # Find all .app bundles and extract app information
+        {
+            # System applications
+            find /System/Applications -name "*.app" -maxdepth 2 2>/dev/null | while read -r app_path; do
+                local app_name=$(basename "$app_path" .app)
+                local bundle_id=$(defaults read "$app_path/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "unknown")
+                echo "$app_name|$app_path|$bundle_id"
+            done
+
+            # User applications
+            find /Applications -name "*.app" -maxdepth 3 2>/dev/null | while read -r app_path; do
+                local app_name=$(basename "$app_path" .app)
+                local bundle_id=$(defaults read "$app_path/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "unknown")
+                echo "$app_name|$app_path|$bundle_id"
+            done
+
+            # Additional locations using mdfind
+            mdfind "kMDItemKind == 'Application'" 2>/dev/null | grep "\.app$" | while read -r app_path; do
+                local app_name=$(basename "$app_path" .app)
+                local bundle_id=$(defaults read "$app_path/Contents/Info.plist" CFBundleIdentifier 2>/dev/null || echo "unknown")
+                echo "$app_name|$app_path|$bundle_id"
+            done
+        } | sort -u > "$temp_file"
+
+        # Move to cache file
+        mv "$temp_file" "$APPS_CACHE_FILE"
+        log_message "Application discovery complete. Found $(wc -l < "$APPS_CACHE_FILE") applications."
+    fi
+}
+
+# Function to create default config if it doesn't exist
+create_default_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        log_message "Creating default configuration at $CONFIG_FILE"
+        cat > "$CONFIG_FILE" << EOF
+# Power-Aware App Manager Configuration
+#
+# DELAY_MINUTES: Minutes to wait before stopping apps when switching to battery
+# This helps handle brief power outages without unnecessarily stopping apps
+DELAY_MINUTES=$DEFAULT_DELAY_MINUTES
+
+# MANAGED_APPS: List of applications to manage
+# Format: "App Name|/Path/to/App.app|bundle.identifier"
+# Use 'pam add' command to add apps interactively
+MANAGED_APPS=(
+$(printf '    "%s"\n' "${DEFAULT_APPS[@]}")
+)
+
+# MANAGED_LAUNCHAGENTS: List of LaunchAgents to manage (e.g., updaters)
+# Format: "LaunchAgent-Label" (e.g., "com.google.GoogleUpdater.wake")
+MANAGED_LAUNCHAGENTS=(
+$(printf '    "%s"\n' "${DEFAULT_LAUNCHAGENTS[@]}")
+)
+EOF
+        log_message "Default configuration created. Use 'pam add' to add apps."
+    fi
+}
+
+# Function to load configuration
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        source "$CONFIG_FILE"
+        # Support legacy APPS variable
+        if [[ -n "${APPS:-}" ]] && [[ -z "${MANAGED_APPS:-}" ]]; then
+            MANAGED_APPS=("${APPS[@]}")
+        fi
+        # Set default LaunchAgents if not defined in config
+        if [[ -z "${MANAGED_LAUNCHAGENTS:-}" ]]; then
+            MANAGED_LAUNCHAGENTS=("${DEFAULT_LAUNCHAGENTS[@]}")
+        fi
+    else
+        DELAY_MINUTES=$DEFAULT_DELAY_MINUTES
+        MANAGED_APPS=("${DEFAULT_APPS[@]}")
+        MANAGED_LAUNCHAGENTS=("${DEFAULT_LAUNCHAGENTS[@]}")
+    fi
+
+    # Validate delay minutes
+    if ! [[ "$DELAY_MINUTES" =~ ^[0-9]+$ ]] || [[ "$DELAY_MINUTES" -lt 0 ]]; then
+        log_message "Invalid DELAY_MINUTES value: $DELAY_MINUTES. Using default: $DEFAULT_DELAY_MINUTES"
+        DELAY_MINUTES=$DEFAULT_DELAY_MINUTES
+    fi
+}
+
+# Function to parse app entry (name|path|bundle_id)
+parse_app_entry() {
+    local entry="$1"
+    local field="$2"
+
+    IFS='|' read -r app_name app_path bundle_id <<< "$entry"
+
+    case "$field" in
+        "name") echo "$app_name" ;;
+        "path") echo "$app_path" ;;
+        "bundle_id") echo "$bundle_id" ;;
+        *) echo "$entry" ;;
+    esac
+}
+
+# Function to check if an app is running
+is_app_running() {
+    local app_entry="$1"
+    local app_name=$(parse_app_entry "$app_entry" "name")
+    local app_path=$(parse_app_entry "$app_entry" "path")
+    local bundle_id=$(parse_app_entry "$app_entry" "bundle_id")
+
+    # Try multiple methods to detect if app is running
+    # Method 1: Check by bundle identifier
+    if [[ "$bundle_id" != "unknown" ]] && [[ -n "$bundle_id" ]]; then
+        if osascript -e "tell application \"System Events\" to get exists (processes whose bundle identifier is \"$bundle_id\")" 2>/dev/null | grep -q "true"; then
+            return 0
+        fi
+    fi
+
+    # Method 2: Check by application name
+    if pgrep -f "$app_name" > /dev/null 2>&1; then
+        return 0
+    fi
+
+    # Method 3: Check by app path
+    if [[ -n "$app_path" ]] && pgrep -f "$app_path" > /dev/null 2>&1; then
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to start an app
+start_app() {
+    local app_entry="$1"
+    local app_name=$(parse_app_entry "$app_entry" "name")
+    local app_path=$(parse_app_entry "$app_entry" "path")
+
+    if ! is_app_running "$app_entry"; then
+        log_message "Starting $app_name"
+
+        # Try multiple methods for truly silent startup
+        local started=false
+
+        # Method 1: Use open with all silent flags and background execution
+        if [[ -n "$app_path" ]] && [[ -d "$app_path" ]]; then
+            if (open -g -j "$app_path" >/dev/null 2>&1 &); then
+                started=true
+            fi
+        fi
+
+        if [[ "$started" == "false" ]]; then
+            if (open -g -j -a "$app_name" >/dev/null 2>&1 &); then
+                started=true
+            fi
+        fi
+
+        if [[ "$started" == "true" ]]; then
+            # Give the app a moment to start, then try to hide it
+            sleep 1
+            osascript -e "tell application \"System Events\" to set visible of process \"$app_name\" to false" >/dev/null 2>&1 &
+            log_message "$app_name started successfully (silent background)"
+        else
+            log_message "Failed to start $app_name (app may not be installed or accessible)"
+        fi
+    else
+        log_message "$app_name is already running"
+    fi
+}
+
+# Function to stop an app
+stop_app() {
+    local app_entry="$1"
+    local app_name=$(parse_app_entry "$app_entry" "name")
+    local bundle_id=$(parse_app_entry "$app_entry" "bundle_id")
+
+    if is_app_running "$app_entry"; then
+        log_message "Stopping $app_name"
+
+        # Try graceful quit first
+        local quit_success=false
+        if [[ "$bundle_id" != "unknown" ]] && [[ -n "$bundle_id" ]]; then
+            if osascript -e "tell application id \"$bundle_id\" to quit" 2>/dev/null; then
+                sleep 2
+                if ! is_app_running "$app_entry"; then
+                    quit_success=true
+                fi
+            fi
+        fi
+
+        if [[ "$quit_success" == "false" ]]; then
+            # Fall back to pkill
+            if pkill -f "$app_name" 2>/dev/null; then
+                log_message "$app_name stopped successfully"
+            else
+                log_message "Failed to stop $app_name"
+            fi
+        else
+            log_message "$app_name stopped gracefully"
+        fi
+    else
+        log_message "$app_name is not running"
+    fi
+}
+
+# Function to check if LaunchAgent is loaded
+is_launchagent_loaded() {
+    local agent_label="$1"
+    launchctl list | grep -q "$agent_label"
+}
+
+# Function to load a LaunchAgent
+load_launchagent() {
+    local agent_label="$1"
+    local plist_file="$HOME/Library/LaunchAgents/${agent_label}.plist"
+
+    if [[ -f "$plist_file" ]]; then
+        if ! is_launchagent_loaded "$agent_label"; then
+            log_message "Loading LaunchAgent: $agent_label"
+            if launchctl load "$plist_file" 2>/dev/null; then
+                log_message "LaunchAgent $agent_label loaded successfully"
+            else
+                log_message "Failed to load LaunchAgent: $agent_label"
+            fi
+        else
+            log_message "LaunchAgent $agent_label is already loaded"
+        fi
+    else
+        log_message "LaunchAgent plist not found: $plist_file"
+    fi
+}
+
+# Function to unload a LaunchAgent
+unload_launchagent() {
+    local agent_label="$1"
+    local plist_file="$HOME/Library/LaunchAgents/${agent_label}.plist"
+
+    if is_launchagent_loaded "$agent_label"; then
+        log_message "Unloading LaunchAgent: $agent_label"
+        if launchctl unload "$plist_file" 2>/dev/null; then
+            log_message "LaunchAgent $agent_label unloaded successfully"
+        else
+            log_message "Failed to unload LaunchAgent: $agent_label"
+        fi
+    else
+        log_message "LaunchAgent $agent_label is not loaded"
+    fi
+}
+
+# Function to start all configured LaunchAgents
+start_all_launchagents() {
+    log_message "Starting all configured LaunchAgents"
+    for agent in "${MANAGED_LAUNCHAGENTS[@]}"; do
+        load_launchagent "$agent"
+    done
+}
+
+# Function to stop all configured LaunchAgents
+stop_all_launchagents() {
+    log_message "Stopping all configured LaunchAgents"
+    for agent in "${MANAGED_LAUNCHAGENTS[@]}"; do
+        unload_launchagent "$agent"
+    done
+}
+
+# Function to save which apps are currently running
+save_running_apps_state() {
+    log_message "Saving current running apps state"
+    > "$RUNNING_APPS_STATE"  # Clear the file
+    for app in "${MANAGED_APPS[@]}"; do
+        if is_app_running "$app"; then
+            echo "$app" >> "$RUNNING_APPS_STATE"
+        fi
+    done
+}
+
+# Function to save which LaunchAgents are currently loaded
+save_running_agents_state() {
+    log_message "Saving current running agents state"
+    > "$RUNNING_AGENTS_STATE"  # Clear the file
+    for agent in "${MANAGED_LAUNCHAGENTS[@]}"; do
+        if is_launchagent_loaded "$agent"; then
+            echo "$agent" >> "$RUNNING_AGENTS_STATE"
+        fi
+    done
+}
+
+# Function to start only previously running apps
+start_previously_running_apps() {
+    if [[ ! -f "$RUNNING_APPS_STATE" ]]; then
+        log_message "No previous running apps state found - starting all configured apps"
+        for app in "${MANAGED_APPS[@]}"; do
+            start_app "$app"
+        done
+        return
+    fi
+
+    log_message "Starting only previously running apps"
+    while IFS= read -r app; do
+        if [[ -n "$app" ]]; then
+            start_app "$app"
+        fi
+    done < "$RUNNING_APPS_STATE"
+}
+
+# Function to start only previously loaded LaunchAgents
+start_previously_running_agents() {
+    if [[ ! -f "$RUNNING_AGENTS_STATE" ]]; then
+        log_message "No previous running agents state found - starting all configured agents"
+        start_all_launchagents
+        return
+    fi
+
+    log_message "Starting only previously running LaunchAgents"
+    while IFS= read -r agent; do
+        if [[ -n "$agent" ]]; then
+            load_launchagent "$agent"
+        fi
+    done < "$RUNNING_AGENTS_STATE"
+}
+
+# Function to get current power source
+get_power_source() {
+    pmset -g ps | head -1 | grep -o "'.*'" | tr -d "'"
+}
+
+# Function to check if on AC power
+is_on_ac() {
+    [[ "$(get_power_source)" == "AC Power" ]]
+}
+
+# Function to get current timestamp
+get_timestamp() {
+    date +%s
+}
+
+# Function to save state
+save_state() {
+    local power_state="$1"
+    local timestamp="$2"
+    echo "POWER_STATE=$power_state" > "$STATE_FILE"
+    echo "TIMESTAMP=$timestamp" >> "$STATE_FILE"
+}
+
+# Function to load state
+load_state() {
+    if [[ -f "$STATE_FILE" ]]; then
+        source "$STATE_FILE"
+    else
+        POWER_STATE=""
+        TIMESTAMP=0
+    fi
+}
+
+# Function to start all configured apps (smart - only previously running)
+start_all_apps() {
+    log_message "Starting previously running apps and LaunchAgents"
+    start_previously_running_apps
+    start_previously_running_agents
+}
+
+# Function to force start all configured apps (explicit command)
+force_start_all_apps() {
+    log_message "Force starting all configured apps and LaunchAgents"
+    for app in "${MANAGED_APPS[@]}"; do
+        start_app "$app"
+    done
+    start_all_launchagents
+}
+
+# Function to stop all configured apps
+stop_all_apps() {
+    log_message "Stopping all configured apps and LaunchAgents"
+    # Save which apps/agents are currently running before stopping them
+    save_running_apps_state
+    save_running_agents_state
+    # Now stop everything
+    stop_all_launchagents
+    for app in "${MANAGED_APPS[@]}"; do
+        stop_app "$app"
+    done
+}
+
+# Function to show status
+show_status() {
+    echo "Power-Aware App Manager Status"
+    echo "=============================="
+    echo "Power source: $(get_power_source)"
+    echo "Delay minutes: $DELAY_MINUTES"
+    echo "Configured apps: ${#MANAGED_APPS[@]}"
+    echo "Configured LaunchAgents: ${#MANAGED_LAUNCHAGENTS[@]}"
+    echo
+    echo "App Status:"
+    for app in "${MANAGED_APPS[@]}"; do
+        local app_name=$(parse_app_entry "$app" "name")
+        if is_app_running "$app"; then
+            echo "  ✓ $app_name (running)"
+        else
+            echo "  ✗ $app_name (stopped)"
+        fi
+    done
+    echo
+    echo "LaunchAgent Status:"
+    for agent in "${MANAGED_LAUNCHAGENTS[@]}"; do
+        if is_launchagent_loaded "$agent"; then
+            echo "  ✓ $agent (loaded)"
+        else
+            echo "  ✗ $agent (unloaded)"
+        fi
+    done
+    echo
+
+    load_state
+    if [[ -n "$POWER_STATE" ]]; then
+        echo "Last state: $POWER_STATE at $(date -r $TIMESTAMP)"
+    fi
+}
+
+# Function to list available apps
+list_available_apps() {
+    discover_apps
+
+    echo "Available Applications:"
+    echo "======================"
+
+    local count=0
+    while IFS= read -r line; do
+        count=$((count + 1))
+        local app_name=$(parse_app_entry "$line" "name")
+        local app_path=$(parse_app_entry "$line" "path")
+        printf "%3d. %s\n" "$count" "$app_name"
+    done < "$APPS_CACHE_FILE"
+
+    echo
+    echo "Total: $count applications found"
+}
+
+# Function to list configured apps
+list_configured_apps() {
+    echo "Configured Applications:"
+    echo "======================="
+
+    if [[ ${#MANAGED_APPS[@]} -eq 0 ]]; then
+        echo "No apps currently configured."
+        echo "Use 'pam add' to add applications."
+        return
+    fi
+
+    local count=0
+    for app in "${MANAGED_APPS[@]}"; do
+        count=$((count + 1))
+        local app_name=$(parse_app_entry "$app" "name")
+        printf "%3d. %s\n" "$count" "$app_name"
+    done
+
+    echo
+    echo "Total: $count applications configured"
+}
+
+# Function to add an app interactively
+add_app() {
+    discover_apps
+
+    echo "Select an application to add:"
+    echo "============================"
+
+    # Display available apps with numbers
+    local apps_array=()
+    local count=0
+    while IFS= read -r line; do
+        count=$((count + 1))
+        apps_array+=("$line")
+        local app_name=$(parse_app_entry "$line" "name")
+        printf "%3d. %s\n" "$count" "$app_name"
+    done < "$APPS_CACHE_FILE"
+
+    echo
+    echo "Enter the number of the application to add (1-$count), or 'q' to quit:"
+    read -r selection
+
+    if [[ "$selection" == "q" ]] || [[ "$selection" == "Q" ]]; then
+        echo "Cancelled."
+        return
+    fi
+
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -gt "$count" ]]; then
+        echo "Invalid selection: $selection"
+        return 1
+    fi
+
+    local selected_app="${apps_array[$((selection - 1))]}"
+    local app_name=$(parse_app_entry "$selected_app" "name")
+
+    # Check if app is already configured
+    for configured_app in "${MANAGED_APPS[@]}"; do
+        local configured_name=$(parse_app_entry "$configured_app" "name")
+        if [[ "$configured_name" == "$app_name" ]]; then
+            echo "App '$app_name' is already configured."
+            return 1
+        fi
+    done
+
+    # Add to configuration
+    echo "Adding '$app_name' to managed applications..."
+
+    # Backup current config
+    cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
+
+    # Update config file
+    {
+        # Copy everything before MANAGED_APPS
+        sed '/^MANAGED_APPS=/,$d' "$CONFIG_FILE" 2>/dev/null || true
+        # Add updated MANAGED_APPS
+        echo "MANAGED_APPS=("
+        for app in "${MANAGED_APPS[@]}"; do
+            if [[ -n "$app" ]]; then
+                echo "    \"$app\""
+            fi
+        done
+        echo "    \"$selected_app\""
+        echo ")"
+    } > "$CONFIG_FILE.tmp"
+
+    mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
+    echo "✅ '$app_name' added successfully!"
+    echo "Use 'pam status' to see current configuration."
+}
+
+# Function to remove an app interactively
+remove_app() {
+    if [[ ${#MANAGED_APPS[@]} -eq 0 ]]; then
+        echo "No apps currently configured to remove."
+        return
+    fi
+
+    echo "Select an application to remove:"
+    echo "==============================="
+
+    local count=0
+    for app in "${MANAGED_APPS[@]}"; do
+        count=$((count + 1))
+        local app_name=$(parse_app_entry "$app" "name")
+        printf "%3d. %s\n" "$count" "$app_name"
+    done
+
+    echo
+    echo "Enter the number of the application to remove (1-$count), or 'q' to quit:"
+    read -r selection
+
+    if [[ "$selection" == "q" ]] || [[ "$selection" == "Q" ]]; then
+        echo "Cancelled."
+        return
+    fi
+
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -gt "$count" ]]; then
+        echo "Invalid selection: $selection"
+        return 1
+    fi
+
+    local selected_index=$((selection - 1))
+    local selected_app="${MANAGED_APPS[$selected_index]}"
+    local app_name=$(parse_app_entry "$selected_app" "name")
+
+    echo "Removing '$app_name' from managed applications..."
+
+    # Backup current config
+    cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
+
+    # Update config file
+    {
+        # Copy everything before MANAGED_APPS
+        sed '/^MANAGED_APPS=/,$d' "$CONFIG_FILE" 2>/dev/null || true
+        # Add updated MANAGED_APPS
+        echo "MANAGED_APPS=("
+        local i=0
+        for app in "${MANAGED_APPS[@]}"; do
+            if [[ $i -ne $selected_index ]] && [[ -n "$app" ]]; then
+                echo "    \"$app\""
+            fi
+            i=$((i + 1))
+        done
+        echo ")"
+    } > "$CONFIG_FILE.tmp"
+
+    mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
+    echo "✅ '$app_name' removed successfully!"
+    echo "Use 'pam status' to see current configuration."
+}
+
+# Main monitoring logic
+monitor() {
+    load_config
+    load_state
+
+    local current_power_state
+    if is_on_ac; then
+        current_power_state="AC"
+    else
+        current_power_state="BATTERY"
+    fi
+
+    local current_timestamp=$(get_timestamp)
+
+    log_message "Current power: $current_power_state, Previous: ${POWER_STATE:-UNKNOWN}"
+
+    # Handle state transitions
+    if [[ "$current_power_state" != "$POWER_STATE" ]]; then
+        case "$current_power_state" in
+            "AC")
+                log_message "Switched to AC power - starting apps"
+                start_all_apps
+                ;;
+            "BATTERY")
+                if [[ "$DELAY_MINUTES" -eq 0 ]]; then
+                    log_message "Switched to battery power - stopping apps immediately"
+                    stop_all_apps
+                else
+                    log_message "Switched to battery power - will stop apps in $DELAY_MINUTES minutes"
+                fi
+                ;;
+        esac
+        save_state "$current_power_state" "$current_timestamp"
+    elif [[ "$current_power_state" == "BATTERY" && "$DELAY_MINUTES" -gt 0 ]]; then
+        # Check if delay period has passed
+        local elapsed_minutes=$(( (current_timestamp - TIMESTAMP) / 60 ))
+        if [[ "$elapsed_minutes" -ge "$DELAY_MINUTES" ]]; then
+            log_message "Delay period ($DELAY_MINUTES minutes) elapsed - stopping apps"
+            stop_all_apps
+            # Update timestamp to prevent repeated stopping
+            save_state "$current_power_state" "$current_timestamp"
+        else
+            local remaining_minutes=$(( DELAY_MINUTES - elapsed_minutes ))
+            log_message "On battery for $elapsed_minutes minutes - $remaining_minutes minutes remaining before stopping apps"
+        fi
+    fi
+}
+
+# Handle command line arguments
+case "${1:-}" in
+    "start")
+        load_config
+        start_all_apps
+        ;;
+    "force-start")
+        load_config
+        force_start_all_apps
+        ;;
+    "stop")
+        load_config
+        stop_all_apps
+        ;;
+    "status")
+        load_config
+        show_status
+        ;;
+    "config")
+        create_default_config
+        echo "Configuration file: $CONFIG_FILE"
+        echo "Edit this file to customize your apps and settings."
+        ;;
+    "add")
+        load_config
+        add_app
+        ;;
+    "remove")
+        load_config
+        remove_app
+        ;;
+    "list")
+        load_config
+        list_configured_apps
+        ;;
+    "list-available")
+        list_available_apps
+        ;;
+    "refresh")
+        echo "Refreshing app cache..."
+        rm -f "$APPS_CACHE_FILE"
+        discover_apps
+        echo "✅ App cache refreshed"
+        ;;
+    "monitor"|"")
+        monitor
+        ;;
+    *)
+        echo "Power-Aware App Manager"
+        echo "======================"
+        echo "Usage: $0 [command]"
+        echo
+        echo "App Management:"
+        echo "  add              - Add an app interactively"
+        echo "  remove           - Remove an app interactively"
+        echo "  list             - List configured apps"
+        echo "  list-available   - List all available apps"
+        echo "  refresh          - Refresh available apps cache"
+        echo
+        echo "Power Management:"
+        echo "  start            - Smart start (only previously running apps)"
+        echo "  force-start      - Force start all configured apps"
+        echo "  stop             - Stop all configured apps"
+        echo "  status           - Show current status"
+        echo "  monitor          - Monitor power state and manage apps (default)"
+        echo
+        echo "Configuration:"
+        echo "  config           - Show configuration file location"
+        echo
+        echo "Files:"
+        echo "  Config: $CONFIG_FILE"
+        echo "  Log:    $LOG_FILE"
+        exit 1
+        ;;
+esac
