@@ -1,0 +1,10 @@
+# Cursor Rules for hb's dotfiles workspace
+
+## Terminal Commands
+- When using `cat` command, always use `cat --paging=never` or `cat -P` because `cat` is aliased to `bat` which opens a pager by default
+- Alternative: Use `/bin/cat` to bypass the alias entirely
+
+## Coding Style
+- Prefer concise, well-documented scripts
+- Use meaningful variable names
+- Always include error handling in shell scripts
