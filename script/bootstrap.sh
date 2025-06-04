@@ -196,6 +196,10 @@ install_dotfiles () {
     link_file "$src" "$dst"
   done
 
+  # Link .finicky.js
+  info 'linking Finicky configuration'
+  link_file "$DOTFILES_ROOT/.finicky.js" "$HOME/.finicky.js"
+
   # Create .config directory if it doesn't exist
   if [ ! -d "$HOME/.config" ]; then
     mkdir -p "$HOME/.config"
