@@ -1,0 +1,174 @@
+#!/bin/bash
+
+LLM_AUTH_MANAGER_DIR="$HOME/.llm-auth-manager"
+PROVIDERS_FILE="$LLM_AUTH_MANAGER_DIR/providers.json"
+
+# Ensure the base directory exists
+mkdir -p "$LLM_AUTH_MANAGER_DIR/providers"
+
+# Function to initialize providers.json if it doesn't exist
+initialize_providers_file() {
+    if [ ! -f "$PROVIDERS_FILE" ]; then
+        echo "{}" > "$PROVIDERS_FILE"
+    fi
+}
+
+initialize_providers_file
+
+case "$1" in
+    add-provider)
+        echo "Adding a new provider..."
+        read -p "Enter a name for the provider: " provider_name
+        read -p "Enter the absolute path to the configuration file to manage: " config_file_path
+
+        if [ -z "$provider_name" ] || [ -z "$config_file_path" ]; then
+            echo "Provider name and config file path cannot be empty."
+            exit 1
+        fi
+
+        # Resolve ~ to $HOME for consistency
+        config_file_path=$(echo "$config_file_path" | sed "s#^~#$HOME#")
+
+        # Ensure the directory for the config file exists before checking if the file exists
+        mkdir -p "$(dirname "$config_file_path")"
+
+        # If the file doesn't exist, create an empty one
+        if [ ! -f "$config_file_path" ]; then
+            touch "$config_file_path"
+            echo "Warning: Configuration file '$config_file_path' did not exist and was created."
+        fi
+
+        provider_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name"
+        mkdir -p "$provider_dir/versions"
+
+        # Add provider to providers.json
+        jq --arg name "$provider_name" --arg path "$config_file_path" \
+           '.[$name] = {"path": $path, "current_version": "initial"}' \
+           "$PROVIDERS_FILE" > "$PROVIDERS_FILE.tmp" && mv "$PROVIDERS_FILE.tmp" "$PROVIDERS_FILE"
+
+        # Save initial version
+        cp "$config_file_path" "$provider_dir/versions/initial"
+        echo "Provider '$provider_name' added and initial version saved."
+        ;;
+
+    add-version)
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "Usage: llm-cli-config add-version <provider_name> <version_name>"
+            exit 1
+        fi
+        provider_name="$2"
+        version_name="$3"
+
+        provider_info=$(jq -r ".\"$provider_name\"" "$PROVIDERS_FILE")
+        if [ "$provider_info" == "null" ]; then
+            echo "Error: Provider '$provider_name' not found."
+            exit 1
+        fi
+
+        config_file_path=$(echo "$provider_info" | jq -r ".path")
+        provider_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name"
+
+        if [ ! -f "$config_file_path" ]; then
+            echo "Error: Managed configuration file '$config_file_path' does not exist. Please update the provider path or recreate it."
+            exit 1
+        fi
+
+        cp "$config_file_path" "$provider_dir/versions/$version_name"
+        echo "Version '$version_name' for provider '$provider_name' saved."
+        ;;
+
+    set-version)
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "Usage: llm-cli-config set-version <provider_name> <version_name>"
+            exit 1
+        fi
+        provider_name="$2"
+        version_name="$3"
+
+        provider_info=$(jq -r ".\"$provider_name\"" "$PROVIDERS_FILE")
+        if [ "$provider_info" == "null" ]; then
+            echo "Error: Provider '$provider_name' not found."
+            exit 1
+        fi
+
+        config_file_path=$(echo "$provider_info" | jq -r ".path")
+        provider_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name"
+        version_file="$provider_dir/versions/$version_name"
+
+        if [ ! -f "$version_file" ]; then
+            echo "Error: Version '$version_name' for provider '$provider_name' not found."
+            exit 1
+        fi
+
+        cp "$version_file" "$config_file_path"
+        jq --arg name "$provider_name" --arg version "$version_name" \
+           '.[$name].current_version = $version' \
+           "$PROVIDERS_FILE" > "$PROVIDERS_FILE.tmp" && mv "$PROVIDERS_FILE.tmp" "$PROVIDERS_FILE"
+        echo "Version '$version_name' set as current for provider '$provider_name'."
+        ;;
+
+    edit)
+        if [ -z "$2" ]; then
+            echo "Usage: llm-cli-config edit <provider_name>"
+            exit 1
+        fi
+        provider_name="$2"
+
+        provider_info=$(jq -r ".\"$provider_name\"" "$PROVIDERS_FILE")
+        if [ "$provider_info" == "null" ]; then
+            echo "Error: Provider '$provider_name' not found."
+            exit 1
+        fi
+
+        config_file_path=$(echo "$provider_info" | jq -r ".path")
+
+        if [ ! -f "$config_file_path" ]; then
+            echo "Error: Managed configuration file '$config_file_path' does not exist. Please update the provider path or recreate it."
+            exit 1
+        fi
+
+        echo "Editing '$config_file_path'..."
+        vi "$config_file_path"
+        echo "Remember to use 'llm-cli-config add-version $provider_name <new_version_name>' to save your changes as a new version."
+        ;;
+
+    list)
+        echo "Managed LLM CLI Auth Providers:"
+        if [ ! -f "$PROVIDERS_FILE" ]; then
+            echo "No providers configured yet."
+            exit 0
+        fi
+
+        jq -c 'keys[]' "$PROVIDERS_FILE" | while read -r provider_name_json; do
+            provider_name=$(echo "$provider_name_json" | tr -d '"')
+            provider_info=$(jq -r ".\"$provider_name\"" "$PROVIDERS_FILE")
+            config_file_path=$(echo "$provider_info" | jq -r ".path")
+            current_version=$(echo "$provider_info" | jq -r ".current_version")
+
+            echo "  Provider: $provider_name"
+            echo "    Path: $config_file_path"
+            echo "    Current Version: $current_version"
+            echo "    Available Versions:"
+            provider_versions_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name/versions"
+            if [ -d "$provider_versions_dir" ]; then
+                for version_file in "$provider_versions_dir"/*; do
+                    version_name=$(basename "$version_file")
+                    echo "      - $version_name"
+                done
+            else
+                echo "      (No versions found)"
+            fi
+            echo ""
+        done
+        ;;
+
+    *)
+        echo "Usage: llm-cli-config <command>"
+        echo "Commands:"
+        echo "  add-provider          Add a new LLM CLI auth provider to manage."
+        echo "  add-version <provider_name> <version_name>  Save the current state of a provider's config as a new version."
+        echo "  set-version <provider_name> <version_name>  Set a specific version as the current active config for a provider."
+        echo "  edit <provider_name>  Edit the configuration file for a provider."
+        echo "  list                  List all managed providers and their versions."
+        ;;
+esac
