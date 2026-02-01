@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: limitless-get-latest <name>
+# Example: limitless-get-latest aanchal -> ~/Downloads/aanchal-2025-10-17.m4a
+
+if [[ ${1-} == "" ]]; then
+  echo "Usage: $(basename "$0") <name>" >&2
+  exit 64
+fi
+
+NAME="$1"
+SRC="$HOME/Library/Logs/ai.limitless.desktop/last-meeting-audio.wav"
+OUT_DIR="$HOME/Downloads"
+DATE_STR="$(date +%Y-%m-%d)"
+OUT_FILE="$OUT_DIR/${NAME}-${DATE_STR}.m4a"
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "Error: ffmpeg not found. Install with: brew install ffmpeg" >&2
+  exit 127
+fi
+
+if [[ ! -f "$SRC" ]]; then
+  echo "Error: latest Limitless recording not found at: $SRC" >&2
+  exit 66
+fi
+
+mkdir -p "$OUT_DIR"
+
+# Transcode to AAC/M4A at 64 kbps mono (good quality for speech)
+ffmpeg -y -hide_banner -loglevel error \
+  -i "$SRC" -ac 1 -ar 16000 -c:a aac -b:a 64k -movflags +faststart \
+  "$OUT_FILE"
+
+echo "Saved: $OUT_FILE"

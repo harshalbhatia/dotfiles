@@ -53,21 +53,53 @@ _fzf_compgen_dir() {
 # [ -f ~/z/z.sh ] && source ~/z/z.sh
 
 # Load extra (private) settings
-# [ -f ~/.zshlocal ] && source ~/.zshlocal
+[ -f ~/.zshlocal ] && source ~/.zshlocal
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/opt/homebrew/anaconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+__conda_setup="$('/opt/homebrew/Caskroom/miniconda/base/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "/opt/homebrew/anaconda3/etc/profile.d/conda.sh" ]; then
-        . "/opt/homebrew/anaconda3/etc/profile.d/conda.sh"
+    if [ -f "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
+        . "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh"
     else
-        export PATH="/opt/homebrew/anaconda3/bin:$PATH"
+        export PATH="/opt/homebrew/Caskroom/miniconda/base/bin:$PATH"
     fi
 fi
 unset __conda_setup
 # <<< conda initialize <<<
 
 test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
+
+# mise
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+
+
+
+# Added by Windsurf
+export PATH="/Users/hb/.codeium/windsurf/bin:$PATH"
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/hb/.lmstudio/bin"
+# End of LM Studio CLI section
+
+
+# bun completions
+
+[[ "$TERM_PROGRAM" == "kiro" ]] && . "$(kiro --locate-shell-integration-path zsh)"
+export PATH="$HOME/.local/bin:$PATH"
+
+# opencode
+export PATH=/Users/hb/.opencode/bin:$PATH
+export DO_NOT_TRACK=1
+export GEMINI_TELEMETRY_ENABLED=false
+
+# libpq (psql, pg_dump, etc.)
+export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
+
+# Added by Antigravity
+export PATH="/Users/hb/.antigravity/antigravity/bin:$PATH"

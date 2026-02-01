@@ -1,6 +1,6 @@
 // ~/.finicky.js
 module.exports = {
-  defaultBrowser: "Dia",
+  defaultBrowser: "company.thebrowser.dia",
   options: {
     urlShorteners: ["nam12.safelinks.protection.outlook.com"],
   },

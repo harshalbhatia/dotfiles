@@ -1,0 +1,91 @@
+[window]
+padding = { x = 12, y = 12 }
+decorations = "Full"
+decorations_theme_variant = "Dark"
+opacity = 1.0
+dynamic_title = true
+
+[scrolling]
+history = 1_000_000
+
+[cursor]
+style = { shape = "Block", blinking = "On" }
+blink_interval = 500
+
+[mouse]
+hide_when_typing = true
+
+[font]
+size = 16.0
+
+[font.normal]
+family = "MesloLGM Nerd Font"
+style = "Regular"
+
+[font.bold]
+family = "MesloLGM Nerd Font"
+style = "Bold"
+
+[font.italic]
+family = "MesloLGM Nerd Font"
+style = "Italic"
+
+[font.bold_italic]
+family = "MesloLGM Nerd Font"
+style = "Bold Italic"
+
+[colors.primary]
+background = "#0c1115"
+foreground = "#ffffff"
+
+[colors.cursor]
+text = "#0c1115"
+cursor = "#ffffff"
+
+[colors.normal]
+black = "#1e2126"
+red = "#bd1c17"
+green = "#499e53"
+yellow = "#fae86e"
+blue = "#2a7ab5"
+magenta = "#7349b7"
+cyan = "#37a2a6"
+white = "#8a9097"
+
+[colors.bright]
+black = "#404751"
+red = "#e06c75"
+green = "#49bd98"
+yellow = "#fdce6f"
+blue = "#3b8eea"
+magenta = "#a27fd9"
+cyan = "#50b4dc"
+white = "#ffffff"
+
+[keyboard]
+option_as_alt = "Both"
+
+[[keyboard.bindings]]
+mods = "Command|Shift"
+key = "C"
+action = "Copy"
+
+[[keyboard.bindings]]
+mods = "Command|Shift"
+key = "V"
+action = "Paste"
+
+[[keyboard.bindings]]
+mods = "Command"
+key = "F"
+action = "SearchForward"
+
+[[keyboard.bindings]]
+mods = "Command"
+key = "T"
+action = "SpawnNewInstance"
+
+[[keyboard.bindings]]
+mods = "Command|Shift"
+key = "N"
+action = "CreateNewWindow"

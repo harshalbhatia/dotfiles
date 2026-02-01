@@ -19,36 +19,59 @@ case "$1" in
     add-provider)
         echo "Adding a new provider..."
         read -p "Enter a name for the provider: " provider_name
-        read -p "Enter the absolute path to the configuration file to manage: " config_file_path
+        read -p "Enter the absolute path to the configuration file or directory to manage: " config_path
 
-        if [ -z "$provider_name" ] || [ -z "$config_file_path" ]; then
-            echo "Provider name and config file path cannot be empty."
+        if [ -z "$provider_name" ] || [ -z "$config_path" ]; then
+            echo "Provider name and config path cannot be empty."
             exit 1
-        fi
+        fi # Corrected: Changed '}' to 'fi'
 
         # Resolve ~ to $HOME for consistency
-        config_file_path=$(echo "$config_file_path" | sed "s#^~#$HOME#")
+        config_path=$(echo "$config_path" | sed "s#^~#$HOME#")
 
-        # Ensure the directory for the config file exists before checking if the file exists
-        mkdir -p "$(dirname "$config_file_path")"
-
-        # If the file doesn't exist, create an empty one
-        if [ ! -f "$config_file_path" ]; then
-            touch "$config_file_path"
-            echo "Warning: Configuration file '$config_file_path' did not exist and was created."
+        local_config_type=""
+        if [ -f "$config_path" ]; then
+            local_config_type="file"
+        elif [ -d "$config_path" ]; then
+            local_config_type="directory"
+        else
+            # If it doesn't exist, create it as a file by default, or directory if specified by user
+            read -p "Path '$config_path' does not exist. Create as (f)ile or (d)irectory? [f/d]: " create_type
+            if [[ "$create_type" =~ ^[dD]$ ]]; then
+                mkdir -p "$config_path"
+                local_config_type="directory"
+                echo "Warning: Directory '$config_path' did not exist and was created."
+            else
+                mkdir -p "$(dirname "$config_path")"
+                touch "$config_path"
+                local_config_type="file"
+                echo "Warning: File '$config_path' did not exist and was created."
+            fi
         fi
 
         provider_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name"
         mkdir -p "$provider_dir/versions"
 
+        read -p "Enter a name for the initial version: " initial_version_name
+        if [ -z "$initial_version_name" ]; then
+            echo "Initial version name cannot be empty. Aborting."
+            rmdir "$provider_dir/versions" 2>/dev/null
+            rmdir "$provider_dir" 2>/dev/null
+            exit 1
+        fi
+
         # Add provider to providers.json
-        jq --arg name "$provider_name" --arg path "$config_file_path" \
-           '.[$name] = {"path": $path, "current_version": "initial"}' \
+        jq --arg name "$provider_name" --arg path "$config_path" --arg type "$local_config_type" --arg version "$initial_version_name" \
+           '.[$name] = {"path": $path, "type": $type, "current_version": $version}' \
            "$PROVIDERS_FILE" > "$PROVIDERS_FILE.tmp" && mv "$PROVIDERS_FILE.tmp" "$PROVIDERS_FILE"
 
         # Save initial version
-        cp "$config_file_path" "$provider_dir/versions/initial"
-        echo "Provider '$provider_name' added and initial version saved."
+        if [ "$local_config_type" == "directory" ]; then
+            cp -r "$config_path" "$provider_dir/versions/$initial_version_name"
+        else
+            cp "$config_path" "$provider_dir/versions/$initial_version_name"
+        fi
+        echo "Provider '$provider_name' added and version '$initial_version_name' saved."
         ;;
 
     add-version)
@@ -65,15 +88,25 @@ case "$1" in
             exit 1
         fi
 
-        config_file_path=$(echo "$provider_info" | jq -r ".path")
+        config_path=$(echo "$provider_info" | jq -r ".path")
+        local_config_type=$(echo "$provider_info" | jq -r ".type")
         provider_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name"
 
-        if [ ! -f "$config_file_path" ]; then
-            echo "Error: Managed configuration file '$config_file_path' does not exist. Please update the provider path or recreate it."
+        if [ ! -e "$config_path" ]; then # Use -e to check for existence of file or directory
+            echo "Error: Managed configuration path '$config_path' does not exist. Please update the provider path or recreate it."
             exit 1
         fi
 
-        cp "$config_file_path" "$provider_dir/versions/$version_name"
+        # Remove existing version if it's a directory to ensure clean copy
+        if [ -d "$provider_dir/versions/$version_name" ]; then
+            rm -rf "$provider_dir/versions/$version_name"
+        fi
+
+        if [ "$local_config_type" == "directory" ]; then
+            cp -r "$config_path" "$provider_dir/versions/$version_name"
+        else
+            cp "$config_path" "$provider_dir/versions/$version_name"
+        fi
         echo "Version '$version_name' for provider '$provider_name' saved."
         ;;
 
@@ -91,16 +124,33 @@ case "$1" in
             exit 1
         fi
 
-        config_file_path=$(echo "$provider_info" | jq -r ".path")
+        config_path=$(echo "$provider_info" | jq -r ".path")
+        local_config_type=$(echo "$provider_info" | jq -r ".type")
         provider_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name"
-        version_file="$provider_dir/versions/$version_name"
+        version_path="$provider_dir/versions/$version_name"
 
-        if [ ! -f "$version_file" ]; then
+        if [ ! -e "$version_path" ]; then # Use -e to check for existence of file or directory
             echo "Error: Version '$version_name' for provider '$provider_name' not found."
             exit 1
         fi
 
-        cp "$version_file" "$config_file_path"
+        # Remove existing managed path before copying the new version
+        if [ -e "$config_path" ]; then # Check if it exists before trying to remove
+            if [ "$local_config_type" == "directory" ]; then
+                rm -rf "$config_path"
+            else
+                rm "$config_path"
+            fi
+        fi
+        mkdir -p "$(dirname "$config_path")"
+
+        if [ "$local_config_type" == "directory" ]; then
+            cp -r "$version_path" "$(dirname "$config_path")"
+            mv "$(dirname "$config_path")/$version_name" "$config_path"
+        else
+            cp "$version_path" "$config_path"
+        fi
+
         jq --arg name "$provider_name" --arg version "$version_name" \
            '.[$name].current_version = $version' \
            "$PROVIDERS_FILE" > "$PROVIDERS_FILE.tmp" && mv "$PROVIDERS_FILE.tmp" "$PROVIDERS_FILE"
@@ -120,15 +170,9 @@ case "$1" in
             exit 1
         fi
 
-        config_file_path=$(echo "$provider_info" | jq -r ".path")
+        config_path=$(echo "$provider_info" | jq -r ".path")
 
-        if [ ! -f "$config_file_path" ]; then
-            echo "Error: Managed configuration file '$config_file_path' does not exist. Please update the provider path or recreate it."
-            exit 1
-        fi
-
-        echo "Editing '$config_file_path'..."
-        vi "$config_file_path"
+        echo "The configuration path for '$provider_name' is: $config_path"
         echo "Remember to use 'llm-cli-config add-version $provider_name <new_version_name>' to save your changes as a new version."
         ;;
 
@@ -142,17 +186,18 @@ case "$1" in
         jq -c 'keys[]' "$PROVIDERS_FILE" | while read -r provider_name_json; do
             provider_name=$(echo "$provider_name_json" | tr -d '"')
             provider_info=$(jq -r ".\"$provider_name\"" "$PROVIDERS_FILE")
-            config_file_path=$(echo "$provider_info" | jq -r ".path")
+            config_path=$(echo "$provider_info" | jq -r ".path")
             current_version=$(echo "$provider_info" | jq -r ".current_version")
+            local_config_type=$(echo "$provider_info" | jq -r ".type")
 
             echo "  Provider: $provider_name"
-            echo "    Path: $config_file_path"
+            echo "    Path: $config_path (Type: $local_config_type)"
             echo "    Current Version: $current_version"
             echo "    Available Versions:"
             provider_versions_dir="$LLM_AUTH_MANAGER_DIR/providers/$provider_name/versions"
             if [ -d "$provider_versions_dir" ]; then
-                for version_file in "$provider_versions_dir"/*; do
-                    version_name=$(basename "$version_file")
+                for version_entry in "$provider_versions_dir"/*; do
+                    version_name=$(basename "$version_entry")
                     echo "      - $version_name"
                 done
             else
@@ -168,7 +213,7 @@ case "$1" in
         echo "  add-provider          Add a new LLM CLI auth provider to manage."
         echo "  add-version <provider_name> <version_name>  Save the current state of a provider's config as a new version."
         echo "  set-version <provider_name> <version_name>  Set a specific version as the current active config for a provider."
-        echo "  edit <provider_name>  Edit the configuration file for a provider."
+        echo "  edit <provider_name>  Display the configuration path for a provider."
         echo "  list                  List all managed providers and their versions."
         ;;
 esac

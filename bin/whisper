@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
+# --- Configuration ---
+# The name of the conda environment where faster-whisper is installed.
+CONDA_ENV_NAME="faster-whisper-env"
+# The whisper model to use (as requested by the user).
+MODEL_SIZE="large-v3"
+# --- End Configuration ---
+
+# Check if a file path is provided as an argument.
+if [ -z "$1" ]; then
+  echo "Usage: $0 <path/to/audio_file>"
+  exit 1
+fi
+
+# Check if the conda command is available.
+if ! command -v conda &> /dev/null; then
+  echo "Error: The 'conda' command is not found."
+  echo "Please make sure Conda is installed and initialized for your shell."
+  exit 1
+fi
+
+AUDIO_FILE_PATH="$1"
+
+# Execute the Python script using 'conda run'.
+# This runs the command within the specified conda environment without needing to activate it first.
+conda run --no-capture-output -n "$CONDA_ENV_NAME" python -c "
+import sys
+from faster_whisper import WhisperModel
+
+# Get the model size and audio file path from the command-line arguments.
+model_size = sys.argv[1]
+audio_file = sys.argv[2]
+
+# Load the Whisper model.
+# Using CPU with int8 quantization for broad compatibility.
+model = WhisperModel(model_size, device='cpu', compute_type='int8')
+
+# Transcribe the audio file.
+segments, info = model.transcribe(audio_file, beam_size=5)
+
+# Print the transcription segments.
+for segment in segments:
+    print(segment.text.strip())
+" "$MODEL_SIZE" "$AUDIO_FILE_PATH"

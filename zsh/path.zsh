@@ -20,7 +20,7 @@ _prepend_path "/opt/homebrew/opt/openssl@3/bin"
 export PKG_CONFIG_PATH="/opt/homebrew/opt/openssl@3/lib/pkgconfig"
 
 # User-specific paths
-_prepend_path "$HOME/go/bin"
+
 _prepend_path "$HOME/dotfiles/bin"
 _prepend_path "$HOME/.cargo/bin" # For Rust/Cargo, if used
 
@@ -28,4 +28,6 @@ _prepend_path "$HOME/.cargo/bin" # For Rust/Cargo, if used
 # _prepend_path "/usr/local/bin" # Already often in default PATH or covered by Homebrew
 # _prepend_path "/usr/local/sbin" # Already often in default PATH or covered by Homebrew
 
+
 export PATH
+

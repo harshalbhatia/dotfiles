@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Screen recording converter/verifier using ffmpeg hevc_videotoolbox
+# - Reads a newline-delimited list of absolute file paths (screen recordings)
+# - Converts to HEVC MP4 in ~/Desktop/ScreenRecordings/Processed
+# - Modes: seq (convert+verify per file), convert-all, verify-all
+
+MODE="seq"
+LIST="${HOME}/screen_recordings_list.txt"
+OUTDIR="${HOME}/Desktop/ScreenRecordings/Processed"
+FFMPEG="${FFMPEG:-}"
+FFPROBE="${FFPROBE:-}"
+# Encoder selection: x265 (software, better compression) or vtb (hardware VideoToolbox)
+ENCODER="x265"
+# x265 settings (defaults optimized for speed)
+CRF="28"
+PRESET="faster"
+# vtb quality mode (fallback/alternative)
+QV="50"              # hevc_videotoolbox quality factor; larger => smaller files
+BITRATE=""           # if set (e.g., 4500k) uses target bitrate instead of quality
+FORCE=0               # overwrite existing outputs
+DRYRUN=0
+THREADS="0"           # 0 = auto (all cores)
+HWDEC=1               # enable VideoToolbox hardware decode by default
+SCALE=""              # e.g., 1920:-2 to limit width (off by default)
+X265_FAST=1           # enable pmode/pme parallel ME for speed
+
+usage() {
+  cat <<USAGE
+Usage: $(basename "$0") [mode] [options] 
+
+Modes:
+  seq           Convert each file then verify it (default)
+  convert-all   Convert all files (skip existing); no verification
+  verify-all    Verify all input/output pairs
+
+Options:
+  --list PATH         Path to list file (default: $LIST)
+  --outdir PATH       Output directory (default: $OUTDIR)
+  --ffmpeg PATH       Path to ffmpeg (default: auto-detect)
+  --ffprobe PATH      Path to ffprobe (default: auto-detect)
+  --encoder NAME      Encoder: x265 or vtb (default: $ENCODER)
+  --crf N             x265 CRF value (default: $CRF)
+  --preset NAME       x265 preset (default: $PRESET)
+  --qv N              Quality factor for hevc_videotoolbox (default: $QV; larger => smaller files)
+  --bitrate BV        Target video bitrate (e.g., 4500k). Overrides quality mode
+  --threads N         ffmpeg thread count (default: $THREADS; 0 uses all cores)
+  --hwdec             Enable VideoToolbox hardware decode when possible
+  --scale WxH         Scale video (e.g., 1920:-2 or -2:1080) for speed/smaller files
+  --x265-fast         Enable x265 pmode/pme parallel mode for more speed
+  --force             Overwrite existing outputs
+  --dry-run           Print actions without executing ffmpeg
+  -h, --help          Show this help
+USAGE
+}
+
+# Optional first positional mode
+if [[ $# -gt 0 ]]; then
+  case "$1" in
+    seq|convert-all|verify-all) MODE="$1"; shift;; 
+  esac
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --list) LIST="$2"; shift 2;; 
+    --outdir) OUTDIR="$2"; shift 2;; 
+    --ffmpeg) FFMPEG="$2"; shift 2;; 
+    --ffprobe) FFPROBE="$2"; shift 2;; 
+    --encoder) ENCODER="$2"; shift 2;; 
+    --crf) CRF="$2"; shift 2;; 
+    --preset) PRESET="$2"; shift 2;; 
+    --qv) QV="$2"; shift 2;; 
+    --bitrate) BITRATE="$2"; shift 2;; 
+    --threads) THREADS="$2"; shift 2;; 
+    --hwdec) HWDEC=1; shift;; 
+    --scale) SCALE="$2"; shift 2;; 
+    --x265-fast) X265_FAST=1; shift;; 
+    --force) FORCE=1; shift;; 
+    --dry-run) DRYRUN=1; shift;; 
+    -h|--help) usage; exit 0;; 
+    *) echo "Unknown argument: $1" >&2; usage; exit 2;; 
+  esac
+done
+
+# Resolve ffmpeg/ffprobe
+if [[ -z "$FFMPEG" ]]; then
+  if command -v ffmpeg >/dev/null 2>&1; then FFMPEG="$(command -v ffmpeg)";
+  elif [[ -x "/opt/homebrew/bin/ffmpeg" ]]; then FFMPEG="/opt/homebrew/bin/ffmpeg";
+  elif [[ -x "/usr/local/bin/ffmpeg" ]]; then FFMPEG="/usr/local/bin/ffmpeg";
+  else echo "ffmpeg not found" >&2; exit 1; fi
+fi
+if [[ -z "$FFPROBE" ]]; then
+  if command -v ffprobe >/dev/null 2>&1; then FFPROBE="$(command -v ffprobe)";
+  else FFPROBE="${FFMPEG%/*}/ffprobe"; fi
+fi
+
+# Basic encoder availability checks
+if [[ "$ENCODER" == "x265" ]]; then
+  "$FFMPEG" -hide_banner -encoders 2>/dev/null | grep -q " libx265 " || { echo "libx265 encoder not available. Try: brew install ffmpeg --with-libx265 (or ensure your ffmpeg has x265)." >&2; exit 1; }
+else
+  "$FFMPEG" -hide_banner -encoders 2>/dev/null | grep -q " hevc_videotoolbox" || { echo "hevc_videotoolbox encoder not available" >&2; exit 1; }
+fi
+
+mkdir -p "$OUTDIR"
+
+log() { printf "%s\n" "$*"; }
+
+out_path_for() {
+  local in="$1" base
+  base="$(basename "${in%.*}")"
+  printf '%s/%s.mp4' "$OUTDIR" "$base"
+}
+
+file_size_bytes() { stat -f %z -- "$1" 2>/dev/null || echo 0; }
+
+percent_reduction() {
+  python3 - "$1" "$2" <<'PY'
+import sys
+ib, ob = int(sys.argv[1]), int(sys.argv[2])
+print(f"{(1 - ob/ib)*100:.1f}" if ib else "0.0")
+PY
+}
+
+probe_vals() {
+  # $1: stream selector (e.g., v:0), $2: keys, $3: file
+  "$FFPROBE" -v error -select_streams "$1" -show_entries "$2" -of default=nw=1:nk=1 -- "$3" 2>/dev/null || true
+}
+
+count_streams() { "$FFPROBE" -v error -select_streams "$1" -show_entries stream=index -of csv=p=0 -- "$2" 2>/dev/null | wc -l | tr -d ' '; }
+
+duration_seconds() { "$FFPROBE" -v error -show_entries format=duration -of default=nw=1:nk=1 -- "$1" 2>/dev/null || echo 0; }
+
+fps_as_float() {
+  python3 - "$1" <<'PY'
+import sys
+s=sys.argv[1].strip()
+try:
+  if '/' in s:
+    a,b=s.split('/')
+    a=float(a or 0); b=float(b or 1); print(a/b if b else 0.0)
+  else:
+    print(float(s))
+except Exception:
+  print(0.0)
+PY
+}
+
+verify_pair() {
+  local in="$1" out="$2" ok=1
+  [[ -f "$out" ]] || { log "VERIFY FAIL: missing output: $out"; return 2; }
+
+  local vin vout ain aout
+  vin=$(count_streams v "$in"); vout=$(count_streams v "$out")
+  ain=$(count_streams a "$in"); aout=$(count_streams a "$out")
+  [[ "$vin" == "$vout" ]] || { log "VERIFY WARN: video streams in=$vin out=$vout"; ok=0; }
+  [[ "$ain" == "$aout" ]] || { log "VERIFY WARN: audio streams in=$ain out=$aout"; ok=0; }
+
+  local iw ih ifps ow oh ofps
+  read -r iw ih ifps < <(probe_vals v:0 stream=width,height,avg_frame_rate "$in")
+  read -r ow oh ofps < <(probe_vals v:0 stream=width,height,avg_frame_rate "$out")
+  [[ -z "$iw" || -z "$ow" || "$iw" == "$ow" ]] || { log "VERIFY WARN: width in=$iw out=$ow"; ok=0; }
+  [[ -z "$ih" || -z "$oh" || "$ih" == "$oh" ]] || { log "VERIFY WARN: height in=$ih out=$oh"; ok=0; }
+
+  local ifpsf ofpsf
+  ifpsf=$(fps_as_float "$ifps"); ofpsf=$(fps_as_float "$ofps")
+  python3 - "$ifpsf" "$ofpsf" <<'PY'
+import sys
+a=float(sys.argv[1]); b=float(sys.argv[2])
+print(0 if abs(a-b)<=1.0 else 1)
+PY
+  if [[ $(python3 - "$ifpsf" "$ofpsf" <<'PY'
+import sys
+a=float(sys.argv[1]); b=float(sys.argv[2])
+print(0 if abs(a-b)<=1.0 else 1)
+PY
+) -ne 0 ]]; then
+    log "VERIFY WARN: fps in=$ifps (~$ifpsf) out=$ofps (~$ofpsf)"; ok=0;
+  fi
+
+  if [[ "$ain" -gt 0 && "$aout" -gt 0 ]]; then
+    local ich isr och osr
+    read -r ich isr < <(probe_vals a:0 stream=channels,sample_rate "$in")
+    read -r och osr < <(probe_vals a:0 stream=channels,sample_rate "$out")
+    [[ -z "$ich" || -z "$och" || "$ich" == "$och" ]] || { log "VERIFY WARN: audio channels in=$ich out=$och"; ok=0; }
+    [[ -z "$isr" || -z "$osr" || "$isr" == "$osr" ]] || { log "VERIFY WARN: audio sample_rate in=$isr out=$osr"; ok=0; }
+  fi
+
+  local din dout
+  din=$(duration_seconds "$in"); dout=$(duration_seconds "$out")
+  if [[ -n "$din" && -n "$dout" ]]; then
+    if [[ $(python3 - "$din" "$dout" <<'PY'
+import sys
+a=float(sys.argv[1] or 0); b=float(sys.argv[2] or 0)
+print(0 if abs(a-b)<=0.5 else 1)
+PY
+) -ne 0 ]]; then
+      log "VERIFY WARN: duration in=$din out=$dout"; ok=0;
+    fi
+  fi
+
+  local ins outs red
+  ins=$(file_size_bytes "$in"); outs=$(file_size_bytes "$out"); red=$(percent_reduction "$ins" "$outs")
+  log "Size: in=${ins}B out=${outs}B reduction=${red}%"
+  if [[ "$ok" -eq 1 ]]; then log "VERIFY PASS: $(basename "$out")"; else log "VERIFY DONE with warnings: $(basename "$out")"; fi
+  return 0
+}
+
+convert_one() {
+  local in="$1" out
+  out="$(out_path_for "$in")"
+
+  if [[ -f "$out" && "$FORCE" -ne 1 ]]; then
+    log "Skip (exists): $out"; return 0
+  fi
+
+  log "Converting -> $out" 
+  
+  local cmd=()
+  cmd+=("$FFMPEG" -hide_banner -y -loglevel error -stats)
+  if [[ "$HWDEC" -eq 1 ]]; then cmd+=(-hwaccel videotoolbox); fi
+  cmd+=(-i "$in" -map 0)
+  if [[ -n "$SCALE" ]]; then cmd+=(-vf "scale=$SCALE"); fi
+
+  if [[ "$ENCODER" == "x265" ]]; then
+    cmd+=(-c:v libx265 -preset "$PRESET" -crf "$CRF")
+    if [[ "$X265_FAST" -eq 1 ]]; then cmd+=(-x265-params "pmode=1:pme=1"); fi
+    cmd+=(-tag:v hvc1 -pix_fmt yuv420p)
+  else
+    cmd+=(-c:v hevc_videotoolbox -tag:v hvc1 -prio_speed 1)
+    if [[ -n "$BITRATE" ]]; then
+      local BV_N="${BITRATE%k}"
+      cmd+=(-b:v "$BITRATE" -maxrate "$BITRATE" -bufsize "$(( 2 * BV_N ))k")
+    else
+      cmd+=(-q:v "$QV")
+    fi
+  fi
+
+  cmd+=(-c:a aac -b:a 128k -movflags +faststart)
+  cmd+=(-threads "$THREADS" "$out")
+
+  if [[ "$DRYRUN" -eq 1 ]]; then
+    log "DRY-RUN: ${cmd[@]}"
+    return 0
+  fi
+
+  "${cmd[@]}"
+}
+
+
+do_seq() {
+  local in out
+  while IFS= read -r in; do
+    in=$(eval echo "$in")
+    [[ -f "$in" ]] || { log "Missing input (skip): $in"; continue; }
+    out="$(out_path_for "$in")"
+    convert_one "$in"
+    verify_pair "$in" "$out" || true
+    echo
+  done < <(cat)
+}
+
+do_convert_all() {
+  local in
+  while IFS= read -r in; do
+    in=$(eval echo "$in")
+    [[ -f "$in" ]] || { log "Missing input (skip): $in"; continue; }
+    convert_one "$in"
+  done < <(cat)
+}
+
+do_verify_all() {
+  local in out
+  while IFS= read -r in; do
+    in=$(eval echo "$in")
+    [[ -f "$in" ]] || { log "Missing input (skip): $in"; continue; }
+    out="$(out_path_for "$in")"
+    verify_pair "$in" "$out" || true
+    echo
+  done < <(cat)
+}
+
+case "$MODE" in
+  seq)          do_seq;; 
+  convert-all)  do_convert_all;; 
+  verify-all)   do_verify_all;; 
+  *) usage; exit 2;; 
+esac

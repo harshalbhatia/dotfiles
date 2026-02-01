@@ -32,21 +32,25 @@ setup_hostname() {
   if [ "$(uname -s)" == "Darwin" ]; then
     info 'checking hostname configuration'
 
-    current_computer_name=$(scutil --get ComputerName)
-    current_localhost_name=$(scutil --get LocalHostName)
-    current_host_name=$(scutil --get HostName)
+    current_computer_name=$(scutil --get ComputerName 2>/dev/null || echo "not set")
+    current_localhost_name=$(scutil --get LocalHostName 2>/dev/null || echo "not set")
+    current_host_name=$(scutil --get HostName 2>/dev/null || echo "not set")
 
     info "Current ComputerName: $current_computer_name"
     info "Current LocalHostName: $current_localhost_name"
     info "Current HostName: $current_host_name (Note: This might be unset)"
 
     user "Do you want to set/update the hostname for this Mac? [y/N]"
-    read -n 1 -r reply
+    if ! read -n 1 -r reply; then
+      reply=''
+    fi
     echo # Move to a new line
 
     if [[ "$reply" =~ ^[Yy]$ ]]; then
       user "Enter the new hostname (e.g., MyMacBookPro):"
-      read -r new_hostname
+      if ! read -r new_hostname; then
+        new_hostname=''
+      fi
 
       if [ -z "$new_hostname" ]; then
         info "No hostname entered, skipping update."
@@ -211,6 +215,13 @@ install_dotfiles () {
     mkdir -p "$HOME/.config/ghostty"
     link_file "$DOTFILES_ROOT/ghostty/config" "$HOME/.config/ghostty/config"
     success "linked ghostty config"
+  fi
+
+  # Link Alacritty config
+  if [ -d "$DOTFILES_ROOT/alacritty" ]; then
+    mkdir -p "$HOME/.config/alacritty"
+    link_file "$DOTFILES_ROOT/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
+    success "linked alacritty config"
   fi
 }
 
