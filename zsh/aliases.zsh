@@ -78,5 +78,3 @@ function traceroute-mapper {
 if [ -x "$(command -v nvim)" ]; then
   alias vim="nvim"
 fi
-
-alias pipes="conda run -n life-queues streamlit run /Users/hb/Projects/pipes/life-queues/dashboard.py"

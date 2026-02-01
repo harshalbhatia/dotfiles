@@ -1,4 +1,4 @@
-_TEN_MINUTE_CHIME_SCRIPT_PATH="${HOME}/.dotfiles/bin/ten_minute_chime.sh"
+_TEN_MINUTE_CHIME_SCRIPT_PATH="${HOME}/dotfiles/bin/ten_minute_chime.sh"
 _TEN_MINUTE_CHIME_CRON_COMMENT="ten_minute_chime"
 _TEN_MINUTE_CHIME_CRON_JOB="0,10,20,30,40,50 * * * * ${_TEN_MINUTE_CHIME_SCRIPT_PATH} # ${_TEN_MINUTE_CHIME_CRON_COMMENT}"
 
@@ -41,4 +41,4 @@ status-ten-minute-chime() {
 }
 
 # To use these functions, source this file in your .zshrc or equivalent:
-# source "${HOME}/.dotfiles/zsh/ten_minute_chime.zsh"
+# source "${HOME}/dotfiles/zsh/ten_minute_chime.zsh"
