@@ -72,8 +72,8 @@ setup_hostname() {
       done
 
 
-      if sudo scutil --set ComputerName "$new_hostname" && \\
-         sudo scutil --set LocalHostName "$new_hostname" && \\
+      if sudo scutil --set ComputerName "$new_hostname" && \
+         sudo scutil --set LocalHostName "$new_hostname" && \
          sudo scutil --set HostName "$new_hostname"; then
         success "Hostname successfully set to '$new_hostname'."
         info "Note: You may need to restart your terminal or even reboot for all applications to see the change."
@@ -339,7 +339,7 @@ ssh_keygen
 if [ "$(uname -s)" == "Darwin" ]
 then
   info "installing dependencies"
-  if source bin/dot 2>&1 | tee /tmp/dotfiles-dot | while read -r data; do info "$data"; done
+  if bin/dot 2>&1 | tee /tmp/dotfiles-dot | while read -r data; do info "$data"; done
   then
     success "dependencies installed"
   else

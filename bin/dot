@@ -7,8 +7,8 @@
 
 set -e
 
-parentDirectory="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P)"
-dotfilesDirectory="$(cd "$( dirname "$parentDirectory" )" && pwd -P)"
+scriptDirectory="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+dotfilesDirectory="$(cd "$scriptDirectory/.." && pwd -P)"
 
 # Chime configuration
 _CHIME_SCRIPT_NAME="ten_minute_chime.sh"
@@ -28,7 +28,7 @@ displayUsageAndExit() {
 	echo "  sound disable Disable the 10-minute sound chime"
 	echo "  sound status  Check the status of the 10-minute sound chime"
 	echo "  help          Show this help message and exit (was -h)"
-	echo "  (no command)  Run default setup (macOS defaults, Homebrew, script/install)"
+	echo "  (no command)  Run default setup (macOS defaults + Brewfile install)"
 	exit 0
 }
 
@@ -129,23 +129,22 @@ EOF
 		exit
 		;;
 	""|null) # No command given, run default actions
-		export ZSH="$dotfilesDirectory" # Was $HOME/dotfiles, ensured consistency
 
 		# Set macOS defaults
 		echo "› Setting macOS defaults..."
-		"$ZSH/macos/set-defaults.sh"
+		"$dotfilesDirectory/macos/set-defaults.sh"
 
 		# Install homebrew
 		echo "› Ensuring Homebrew is installed..."
-		"$ZSH/homebrew/install.sh" # Removed 2>&1 for more visibility
+		"$dotfilesDirectory/homebrew/install.sh"
 
 		# Upgrade homebrew
 		echo "› brew update"
 		brew update
 
-		# Install software
-		echo "› $ZSH/script/install"
-		"$ZSH/script/install"
+		# Install software from Brewfile
+		echo "› brew bundle --file=$dotfilesDirectory/Brewfile"
+		brew bundle --file="$dotfilesDirectory/Brewfile"
 		echo "✓ Dotfiles setup complete."
 		exit
 		;;
