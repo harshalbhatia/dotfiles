@@ -136,7 +136,7 @@ EOF
 
 		# Install homebrew
 		echo "› Ensuring Homebrew is installed..."
-		"$dotfilesDirectory/homebrew/install.sh"
+		sh "$dotfilesDirectory/homebrew/install.sh"
 
 		# Upgrade homebrew
 		echo "› brew update"
