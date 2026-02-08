@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/hb/dotfiles/bin/power-app-manager</string>
+        <string>/Users/hb/dotfiles/exec/power-app-manager</string>
         <string>monitor</string>
     </array>
 

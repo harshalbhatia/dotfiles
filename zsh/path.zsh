@@ -21,7 +21,7 @@ export PKG_CONFIG_PATH="/opt/homebrew/opt/openssl@3/lib/pkgconfig"
 
 # User-specific paths
 
-_prepend_path "$HOME/dotfiles/bin"
+_prepend_path "$HOME/dotfiles/exec"
 _prepend_path "$HOME/.cargo/bin" # For Rust/Cargo, if used
 
 # Other common paths (check if still needed/installed)

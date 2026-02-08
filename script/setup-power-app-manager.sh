@@ -10,7 +10,7 @@ DOTFILES_DIR="$(dirname "$SCRIPT_DIR")"
 PLIST_FILE="$DOTFILES_DIR/macos/com.user.power-app-manager.plist"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 PLIST_DEST="$LAUNCH_AGENTS_DIR/com.user.power-app-manager.plist"
-POWER_SCRIPT="$DOTFILES_DIR/bin/power-app-manager"
+POWER_SCRIPT="$DOTFILES_DIR/exec/power-app-manager"
 
 echo "🔧 Setting up Power-Aware App Manager..."
 

@@ -202,7 +202,7 @@ install_dotfiles () {
 
   # Link .finicky.js
   info 'linking Finicky configuration'
-  link_file "$DOTFILES_ROOT/.finicky.js" "$HOME/.finicky.js"
+  link_file "$DOTFILES_ROOT/config/.finicky.js" "$HOME/.finicky.js"
 
   # Create .config directory if it doesn't exist
   if [ ! -d "$HOME/.config" ]; then
@@ -211,23 +211,23 @@ install_dotfiles () {
   fi
 
   # Link Ghostty config
-  if [ -d "$DOTFILES_ROOT/ghostty" ]; then
+  if [ -d "$DOTFILES_ROOT/config/ghostty" ]; then
     mkdir -p "$HOME/.config/ghostty"
-    link_file "$DOTFILES_ROOT/ghostty/config" "$HOME/.config/ghostty/config"
+    link_file "$DOTFILES_ROOT/config/ghostty/config" "$HOME/.config/ghostty/config"
     success "linked ghostty config"
   fi
 
   # Link Alacritty config
-  if [ -d "$DOTFILES_ROOT/alacritty" ]; then
+  if [ -d "$DOTFILES_ROOT/config/alacritty" ]; then
     mkdir -p "$HOME/.config/alacritty"
-    link_file "$DOTFILES_ROOT/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
+    link_file "$DOTFILES_ROOT/config/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
     success "linked alacritty config"
   fi
 
   # Configure iTerm2 to use dotfiles preferences
-  if [ -d "$DOTFILES_ROOT/iterm" ]; then
+  if [ -d "$DOTFILES_ROOT/config/iterm" ]; then
     info "configuring iTerm2 to use dotfiles preferences"
-    defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$DOTFILES_ROOT/iterm"
+    defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$DOTFILES_ROOT/config/iterm"
     defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
     success "iTerm2 configured to load prefs from dotfiles"
   fi
@@ -248,22 +248,6 @@ install_oh_my_zsh() {
       git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
       git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
   fi
-}
-
-install_powerline_fonts() {
-  info 'installing powerline fonts'
-
-  git clone https://github.com/powerline/fonts.git ~/.fonts --depth=1
-  ~/.fonts/install.sh
-  rm -rf ~/.fonts
-}
-
-install_nerd_fonts() {
-  info 'installing nerd fonts'
-
-  git clone https://github.com/ryanoasis/nerd-fonts ~/.nerd-fonts --depth=1
-  ~/.nerd-fonts/install.sh
-  rm -rf ~/.nerd-fonts
 }
 
 install_z() {
@@ -319,8 +303,6 @@ setup_hostname
 setup_gitconfig
 install_dotfiles
 install_oh_my_zsh
-install_powerline_fonts
-install_nerd_fonts
 install_z
 install_brew_deps
 ssh_keygen

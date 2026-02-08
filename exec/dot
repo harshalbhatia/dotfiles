@@ -12,7 +12,7 @@ dotfilesDirectory="$(cd "$scriptDirectory/.." && pwd -P)"
 
 # Chime configuration
 _CHIME_SCRIPT_NAME="ten_minute_chime.sh"
-_CHIME_SCRIPT_PATH_ABS="${dotfilesDirectory}/bin/${_CHIME_SCRIPT_NAME}"
+_CHIME_SCRIPT_PATH_ABS="${dotfilesDirectory}/exec/${_CHIME_SCRIPT_NAME}"
 _LAUNCHD_LABEL="com.dotfiles.tenminutechime"
 _LAUNCHD_PLIST_PATH="${HOME}/Library/LaunchAgents/${_LAUNCHD_LABEL}.plist"
 
