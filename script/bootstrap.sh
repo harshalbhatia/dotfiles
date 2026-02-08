@@ -223,6 +223,14 @@ install_dotfiles () {
     link_file "$DOTFILES_ROOT/alacritty/alacritty.toml" "$HOME/.config/alacritty/alacritty.toml"
     success "linked alacritty config"
   fi
+
+  # Configure iTerm2 to use dotfiles preferences
+  if [ -d "$DOTFILES_ROOT/iterm" ]; then
+    info "configuring iTerm2 to use dotfiles preferences"
+    defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$DOTFILES_ROOT/iterm"
+    defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
+    success "iTerm2 configured to load prefs from dotfiles"
+  fi
 }
 
 install_oh_my_zsh() {
