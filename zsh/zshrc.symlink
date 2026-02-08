@@ -75,7 +75,9 @@ if [ -x "/opt/homebrew/Caskroom/miniconda/base/bin/conda" ]; then
   }
 fi
 
-test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
+if [[ "$TERM_PROGRAM" == "iTerm.app" ]] && [ -e "${HOME}/.iterm2_shell_integration.zsh" ]; then
+  source "${HOME}/.iterm2_shell_integration.zsh"
+fi
 
 # Added by Windsurf
 export PATH="$HOME/.codeium/windsurf/bin:$PATH"
