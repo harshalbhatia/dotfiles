@@ -55,25 +55,7 @@ _fzf_compgen_dir() {
 # Load extra (private) settings
 [ -f ~/.zshlocal ] && source ~/.zshlocal
 
-# Lazy-load conda on first use.
-if [ -x "/opt/homebrew/Caskroom/miniconda/base/bin/conda" ]; then
-  export PATH="/opt/homebrew/Caskroom/miniconda/base/bin:$PATH"
-  __conda_lazy_init() {
-    unset -f conda __conda_lazy_init
-    local __conda_setup
-    __conda_setup="$('/opt/homebrew/Caskroom/miniconda/base/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-    if [ $? -eq 0 ]; then
-      eval "$__conda_setup"
-    elif [ -f "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh" ]; then
-      . "/opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh"
-    fi
-    unset __conda_setup
-  }
-  conda() {
-    __conda_lazy_init
-    conda "$@"
-  }
-fi
+# Conda is initialized by oh-my-zsh conda plugin
 
 if [[ "$TERM_PROGRAM" == "iTerm.app" ]] && [ -e "${HOME}/.iterm2_shell_integration.zsh" ]; then
   source "${HOME}/.iterm2_shell_integration.zsh"
