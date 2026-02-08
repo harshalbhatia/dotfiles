@@ -1,2 +1,23 @@
 [tools]
+bun = "latest"
+go = "latest"
+node = ["25", "22.14.0"]
+rust = "stable"
+"npm:@google/gemini-cli" = "latest"
+"npm:@openai/codex" = "latest"
+"npm:clawdbot" = "latest"
+"npm:windmill-cli" = "latest"
+tlrc = "latest"
+uv = "latest"
+pnpm = "latest"
+"npm:openclaw" = "latest"
+"npm:@bitwarden/cli" = "latest"
+"npm:@steipete/summarize" = "latest"
+"npm:pm2" = "latest"
 "npm:@google/clasp" = "latest"
+
+[settings]
+idiomatic_version_file_enable_tools = []
+
+[settings.npm]
+bun = true
