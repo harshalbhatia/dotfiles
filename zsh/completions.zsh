@@ -7,6 +7,21 @@ else
   compinit -C -i
 fi
 
+# Lazy-load OpenClaw completion on first completion request.
+if (( $+commands[openclaw] )); then
+  _openclaw_lazy() {
+    local cache_dir="${ZSH_CACHE_DIR:-$HOME/.cache/oh-my-zsh}"
+    local cache_file="$cache_dir/completions/_openclaw"
+    if [[ ! -f "$cache_file" ]]; then
+      mkdir -p "${cache_file:h}"
+      openclaw completion --shell zsh >| "$cache_file" 2>/dev/null
+    fi
+    source "$cache_file"
+    _openclaw "$@"
+  }
+  compdef _openclaw_lazy openclaw
+fi
+
 # # Menu-like autocompletion selection
 # zmodload -i zsh/complist // TODO: Check
 

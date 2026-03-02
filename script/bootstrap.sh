@@ -282,6 +282,15 @@ install_brew_deps() {
     fi
 }
 
+install_cron_jobs() {
+  info 'installing cron jobs'
+  if sh "$DOTFILES_ROOT/cron/install.sh"; then
+    success "cron jobs installed"
+  else
+    fail "error installing cron jobs"
+  fi
+}
+
 ssh_keygen() {
   info 'generating ssh keys'
 
@@ -305,6 +314,7 @@ install_dotfiles
 install_oh_my_zsh
 install_z
 install_brew_deps
+install_cron_jobs
 ssh_keygen
 
 # If we're on a Mac, let's install and setup homebrew.

@@ -1,6 +1,6 @@
 _TEN_MINUTE_CHIME_SCRIPT_PATH="${HOME}/dotfiles/exec/ten_minute_chime.sh"
 _TEN_MINUTE_CHIME_CRON_COMMENT="ten_minute_chime"
-_TEN_MINUTE_CHIME_CRON_JOB="0,10,20,30,40,50 * * * * ${_TEN_MINUTE_CHIME_SCRIPT_PATH} # ${_TEN_MINUTE_CHIME_CRON_COMMENT}"
+_TEN_MINUTE_CHIME_CRON_JOB="0,10,20,30,40,50 * * * * ${_TEN_MINUTE_CHIME_SCRIPT_PATH} > /dev/null 2>&1 # ${_TEN_MINUTE_CHIME_CRON_COMMENT}"
 
 enable-ten-minute-chime() {
   if ! crontab -l 2>/dev/null | grep -qF "${_TEN_MINUTE_CHIME_CRON_COMMENT}"; then
