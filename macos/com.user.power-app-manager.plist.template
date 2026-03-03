@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/hb/dotfiles/exec/power-app-manager</string>
+        <string>__HOME__/dotfiles/exec/power-app-manager</string>
         <string>monitor</string>
     </array>
 
@@ -21,10 +21,10 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>/Users/hb/Library/Logs/power-app-manager-stdout.log</string>
+    <string>__HOME__/Library/Logs/power-app-manager-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/hb/Library/Logs/power-app-manager-stderr.log</string>
+    <string>__HOME__/Library/Logs/power-app-manager-stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

@@ -252,7 +252,7 @@ convert_one() {
 do_seq() {
   local in out
   while IFS= read -r in; do
-    in=$(eval echo "$in")
+    in="${in/#\~/$HOME}"
     [[ -f "$in" ]] || { log "Missing input (skip): $in"; continue; }
     out="$(out_path_for "$in")"
     convert_one "$in"
@@ -264,7 +264,7 @@ do_seq() {
 do_convert_all() {
   local in
   while IFS= read -r in; do
-    in=$(eval echo "$in")
+    in="${in/#\~/$HOME}"
     [[ -f "$in" ]] || { log "Missing input (skip): $in"; continue; }
     convert_one "$in"
   done < <(cat)
@@ -273,7 +273,7 @@ do_convert_all() {
 do_verify_all() {
   local in out
   while IFS= read -r in; do
-    in=$(eval echo "$in")
+    in="${in/#\~/$HOME}"
     [[ -f "$in" ]] || { log "Missing input (skip): $in"; continue; }
     out="$(out_path_for "$in")"
     verify_pair "$in" "$out" || true

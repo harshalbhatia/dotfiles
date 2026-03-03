@@ -7,7 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(dirname "$SCRIPT_DIR")"
-PLIST_FILE="$DOTFILES_DIR/macos/com.user.power-app-manager.plist"
+PLIST_TEMPLATE="$DOTFILES_DIR/macos/com.user.power-app-manager.plist.template"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 PLIST_DEST="$LAUNCH_AGENTS_DIR/com.user.power-app-manager.plist"
 POWER_SCRIPT="$DOTFILES_DIR/exec/power-app-manager"
@@ -26,12 +26,12 @@ fi
 # Create LaunchAgents directory if it doesn't exist
 mkdir -p "$LAUNCH_AGENTS_DIR"
 
-# Copy the plist file
-if [[ -f "$PLIST_FILE" ]]; then
-    cp "$PLIST_FILE" "$PLIST_DEST"
-    echo "✅ Copied Launch Agent plist to $PLIST_DEST"
+# Generate plist from template
+if [[ -f "$PLIST_TEMPLATE" ]]; then
+    sed "s|__HOME__|$HOME|g" "$PLIST_TEMPLATE" > "$PLIST_DEST"
+    echo "✅ Generated Launch Agent plist at $PLIST_DEST"
 else
-    echo "❌ Error: plist file not found at $PLIST_FILE"
+    echo "❌ Error: plist template not found at $PLIST_TEMPLATE"
     exit 1
 fi
 

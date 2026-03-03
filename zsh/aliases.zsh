@@ -40,7 +40,7 @@ alias tf="terraform"
 
 # Make a directory and cd to it
 function take() {
-  mkdir -p $@ && cd ${@:$#}
+  mkdir -p "$@" && cd "${@:$#}"
 }
 
 # cd into whatever is the forefront Finder window
@@ -55,11 +55,11 @@ function gr() {
 
 # git clone and cd to a repo directory
 function clone() {
-  git clone $@
+  git clone "$@"
   if [ "$2" ]; then
     cd "$2"
   else
-    cd $(basename "$1" .git)
+    cd "$(basename "$1" .git)"
   fi
   if [[ -r "./yarn.lock" ]]; then
     yarn

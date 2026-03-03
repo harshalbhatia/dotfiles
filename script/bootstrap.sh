@@ -92,7 +92,7 @@ reload_zshrc() {
 }
 
 setup_gitconfig() {
-  if ! [ -f git/gitconfig.local.symlink ]
+  if ! [ -f "$HOME/.gitconfig.local" ]
   then
     info 'setup gitconfig'
 
@@ -262,26 +262,6 @@ install_z() {
   fi
 }
 
-install_brew_deps() {
-  user "Do you want to install Brewfile?\n\
-        [Y]es, [n]o?"
-        read -n 1 action
-
-        case "$action" in
-          n )
-            brew=false;;
-          * )
-            brew=true;;
-        esac
-
-  if [ "$brew" == "true" ]
-    then
-      info 'installing brew deps'
-      brew bundle
-      success "Installed Brewfile"
-    fi
-}
-
 install_cron_jobs() {
   info 'installing cron jobs'
   if sh "$DOTFILES_ROOT/cron/install.sh"; then
@@ -294,40 +274,33 @@ install_cron_jobs() {
 ssh_keygen() {
   info 'generating ssh keys'
 
-  file="$HOME/.ssh/id_rsa.pub"
+  mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+
+  file="$HOME/.ssh/id_ed25519.pub"
   if [ ! -f "$file" ]; then
-    ssh-keygen -q -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa <<<y 2>&1 >/dev/null
+    ssh-keygen -q -t ed25519 -N '' -f "$HOME/.ssh/id_ed25519" <<<y 2>&1 >/dev/null
     eval "$(ssh-agent -s)"
   fi
 
+  success 'copied ssh key to clipboard'
 
-  success 'copyied ssh key to clipboard'
-
-  pbcopy < ~/.ssh/id_rsa.pub
+  pbcopy < "$file"
   cat "$file"
 }
 
-# Call setup_hostname early in the script
 setup_hostname
 setup_gitconfig
 install_dotfiles
 install_oh_my_zsh
 install_z
-install_brew_deps
-install_cron_jobs
 ssh_keygen
+install_cron_jobs
 
-# If we're on a Mac, let's install and setup homebrew.
-if [ "$(uname -s)" == "Darwin" ]
-then
-  info "installing dependencies"
-  if bin/dot 2>&1 | tee /tmp/dotfiles-dot | while read -r data; do info "$data"; done
-  then
-    success "dependencies installed"
-  else
-    fail "error installing dependencies"
-  fi
-fi
+# macOS defaults
+"$DOTFILES_ROOT/macos/set-defaults.sh"
+
+# Brew bundle
+brew bundle --file="$DOTFILES_ROOT/Brewfile"
 
 echo ''
 echo '  All installed!'

@@ -1,80 +1,48 @@
-# Manual Tasks
-- set caps lock to esc
-- mackup backup and restore
-
-# TODO
- - [x] move bin
- - [x] automate linking
- - [x] link bin
- - [x] install oh-my-zsh
- - [x] ssh keygen
- - [x] install powerline fonts
- - [x] brewfile setup
- - [x] prompt for hostname during setup
- - [x] docs
- - [ ] function for avoid repetetive calling of fonts
-  - [ ] brew is not installed before brewfile installation
-
 # Dotfiles
 
-Personal configuration files for my macOS development environment.
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/harshalbhatia/dotfiles/main/script/install.sh)"
+```
 
-## Overview
+One command on a fresh Mac: installs Xcode CLT, Homebrew, clones this repo, symlinks dotfiles, installs Brewfile packages, configures shell, generates SSH key.
 
-This repository contains my personal dotfiles and system configuration for macOS. It includes:
+## What's Included
 
-- Shell configuration (zsh with Oh My Zsh)
-- Git configuration
-- Package management via Homebrew
-- Terminal configuration (iTerm2, fonts)
-- VPN connection scripts
-- And more
+- **Shell** -- zsh + Oh My Zsh + Powerlevel10k, custom aliases/functions
+- **Packages** -- everything in `Brewfile` via Homebrew
+- **Git** -- global config + per-machine local identity (`~/.gitconfig.local`)
+- **SSH** -- ed25519 key generation, copied to clipboard
+- **macOS** -- sensible defaults via `macos/set-defaults.sh`
+- **Exec** -- custom scripts in `exec/` added to `$PATH`
 
-## Quick Start
+## Day-to-Day
 
-Just run `./script/bootstrap.sh` 🚀
-
-## Features
-
-- Automated setup of development environment
-- Package installation via Brewfile
-- Dotfile symlink management
-- Shell customization with Oh My Zsh
-- SSH key generation
-- Font installation (Powerline, Nerd Fonts)
-- VPN connection scripts
-
-## What Gets Installed
-
-### Command Line Tools
-- git, bat, fzf, ripgrep, and more via Homebrew
-
-### Applications
-- iTerm2, VSCode, browsers, and more via Homebrew Cask
-
-### Shell Environment
-- Oh My Zsh with custom plugins and themes
-- Customized terminal prompt with Powerlevel10k
-- Useful aliases and functions
+| Command | What it does |
+|---------|-------------|
+| `dot` | Re-run bootstrap (update symlinks, brew bundle, etc.) |
+| `dot -b` | Dump current brew state to Brewfile |
 
 ## Customization
 
-You can customize these dotfiles by:
-1. Modifying the Brewfile to add/remove packages
-2. Editing the shell configuration in zsh directory
-3. Adding your own dotfiles to the repository
+- **Packages**: edit `Brewfile`
+- **Shell**: add/edit files in `zsh/`
+- **Git identity**: `~/.gitconfig.local` (created on first run, not tracked)
+- **Private config**: `~/.zshlocal` (sourced if present)
+- **Executables**: drop scripts into `exec/`
 
-## Maintenance
+## Structure
 
-### Update Brewfile
-To update the Brewfile with your current brew setup:
 ```
-bin/dot -b
+script/install.sh     # Remote entry point (curl-safe)
+script/bootstrap.sh   # Main setup orchestrator
+zsh/                  # Shell config (symlinked to ~)
+git/                  # Git config templates
+macos/                # macOS defaults & launch agents
+exec/                 # Custom scripts on $PATH
+Brewfile              # Homebrew packages
 ```
 
-###  Update dotfiles
-To update your dotfiles repository with the latest changes:
-```
-git pull
-./script/bootstrap.sh
-```
+## Manual Steps
+
+- Set Caps Lock to Esc (System Settings > Keyboard > Modifier Keys)
+- Mackup backup/restore for app preferences
