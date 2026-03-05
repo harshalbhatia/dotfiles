@@ -16,6 +16,9 @@ if ! command -v brew &>/dev/null; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
+# Ensure Homebrew indexes are fresh
+brew update
+
 # Clone
 if [ ! -d "$DOTFILES_DIR" ]; then
   git clone https://github.com/harshalbhatia/dotfiles "$DOTFILES_DIR"
