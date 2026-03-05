@@ -299,8 +299,8 @@ install_cron_jobs
 # macOS defaults
 "$DOTFILES_ROOT/macos/set-defaults.sh"
 
-# Brew bundle
-brew bundle --file="$DOTFILES_ROOT/Brewfile"
+# Brew bundle (non-fatal: some casks may fail to download)
+brew bundle --file="$DOTFILES_ROOT/Brewfile" || info "brew bundle finished with errors (some casks may need retry)"
 
 echo ''
 echo '  All installed!'
