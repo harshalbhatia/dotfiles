@@ -300,7 +300,12 @@ install_cron_jobs
 "$DOTFILES_ROOT/macos/set-defaults.sh"
 
 # Brew bundle (non-fatal: some casks may fail to download)
-brew bundle --file="$DOTFILES_ROOT/Brewfile" || info "brew bundle finished with errors (some casks may need retry)"
+export HOMEBREW_CURL_RETRIES=5
+info "installing brew packages (pass 1)"
+if ! brew bundle --file="$DOTFILES_ROOT/Brewfile"; then
+  info "some packages failed — retrying once"
+  brew bundle --file="$DOTFILES_ROOT/Brewfile" || info "brew bundle finished with errors (run 'brew bundle' to retry later)"
+fi
 
 echo ''
 echo '  All installed!'
