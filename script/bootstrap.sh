@@ -302,9 +302,9 @@ install_cron_jobs
 # Brew bundle (non-fatal: some casks may fail to download)
 export HOMEBREW_CURL_RETRIES=5
 info "installing brew packages (pass 1)"
-if ! brew bundle --file="$DOTFILES_ROOT/Brewfile"; then
+if ! brew bundle --verbose --file="$DOTFILES_ROOT/Brewfile"; then
   info "some packages failed — retrying once"
-  brew bundle --file="$DOTFILES_ROOT/Brewfile" || info "brew bundle finished with errors (run 'brew bundle' to retry later)"
+  brew bundle --verbose --file="$DOTFILES_ROOT/Brewfile" || info "brew bundle finished with errors (run 'brew bundle' to retry later)"
 fi
 
 echo ''
