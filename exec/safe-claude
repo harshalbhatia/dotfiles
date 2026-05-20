@@ -5,6 +5,7 @@
 # re-entering the cmux wrapper.
 PATH_RO="$("$(dirname "$0")/_safehouse-readable-path")"
 exec safehouse \
+  --enable=wide-read \
   --add-dirs-ro="$PATH_RO" \
   --add-dirs="$HOME/.cmuxterm:$HOME/.claude:$HOME/.cache/claude:$HOME/.lmstudio:$HOME/.lmstudio-home-pointer" \
   -- "$HOME/.local/bin/claude" "$@"
