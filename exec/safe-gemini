@@ -1,0 +1,5 @@
+#!/bin/bash
+# Run Gemini CLI under agent-safehouse sandbox with cmux hook writes allowed.
+exec safehouse \
+  --add-dirs="$HOME/.cmuxterm:$HOME/.gemini:$HOME/.lmstudio:$HOME/.lmstudio-home-pointer" \
+  -- gemini "$@"

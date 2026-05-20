@@ -1,0 +1,9 @@
+#!/bin/bash
+# scc = "safe claude (yolo)" — replaces cco.
+# Runs Claude Code under agent-safehouse with --dangerously-skip-permissions,
+# shell-init / ssh / cloud-credentials / docker enabled, and writable access
+# to the dirs claude (and the cmux hooks) need.
+exec safehouse \
+  --enable=shell-init,ssh,cloud-credentials,docker \
+  --add-dirs="$HOME/.cmuxterm:$HOME/.claude:$HOME/.cache/claude:$HOME/.lmstudio:$HOME/.lmstudio-home-pointer" \
+  -- "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"
