@@ -3,7 +3,9 @@
 # Runs Claude Code under agent-safehouse with --dangerously-skip-permissions,
 # shell-init / ssh / cloud-credentials / docker enabled, and writable access
 # to the dirs claude (and the cmux hooks) need.
+PATH_RO="$("$(dirname "$0")/_safehouse-readable-path")"
 exec safehouse \
   --enable=shell-init,ssh,cloud-credentials,docker \
+  --add-dirs-ro="$PATH_RO" \
   --add-dirs="$HOME/.cmuxterm:$HOME/.claude:$HOME/.cache/claude:$HOME/.lmstudio:$HOME/.lmstudio-home-pointer" \
   -- "$HOME/.local/bin/claude" --dangerously-skip-permissions "$@"

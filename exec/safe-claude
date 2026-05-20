@@ -3,6 +3,8 @@
 # Called by cmux's claude wrapper via automation.claudeBinaryPath.
 # Must invoke the real claude binary directly (not via PATH) to avoid
 # re-entering the cmux wrapper.
+PATH_RO="$("$(dirname "$0")/_safehouse-readable-path")"
 exec safehouse \
+  --add-dirs-ro="$PATH_RO" \
   --add-dirs="$HOME/.cmuxterm:$HOME/.claude:$HOME/.cache/claude:$HOME/.lmstudio:$HOME/.lmstudio-home-pointer" \
   -- "$HOME/.local/bin/claude" "$@"
