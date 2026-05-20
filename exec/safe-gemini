@@ -2,7 +2,6 @@
 # Run Gemini CLI under agent-safehouse sandbox with cmux hook writes allowed.
 PATH_RO="$("$(dirname "$0")/_safehouse-readable-path")"
 exec safehouse \
-  --enable=wide-read \
-  --add-dirs-ro="$PATH_RO" \
+  --add-dirs-ro="$PATH_RO:$HOME/Library/Preferences" \
   --add-dirs="$HOME/.cmuxterm:$HOME/.gemini:$HOME/.lmstudio:$HOME/.lmstudio-home-pointer" \
   -- gemini "$@"
