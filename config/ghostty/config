@@ -2,7 +2,7 @@
 # Based on previous iTerm2 settings
 
 # Font settings
-font-family = MesloLGMNerdFontCompleteM-Regular
+font-family = "MesloLGM Nerd Font"
 font-size = 16
 font-thicken = true
 font-feature = calt
@@ -13,7 +13,7 @@ window-inherit-working-directory = true
 window-decoration = auto
 window-padding-x = 12
 window-padding-y = 12
-window-theme = dark
+window-theme = auto
 macos-titlebar-style = tabs
 
 # Terminal settings
@@ -23,29 +23,8 @@ mouse-hide-while-typing = true
 scrollback-limit = 1000000
 background-opacity = 1.0
 
-# Glacier color theme adapted from iTerm2
-background = #0c1115
-foreground = #ffffff
-
-# Regular colors (0-7)
-palette = 0=#1e2126
-palette = 1=#bd1c17
-palette = 2=#499e53
-palette = 3=#fae86e
-palette = 4=#2a7ab5
-palette = 5=#7349b7
-palette = 6=#37a2a6
-palette = 7=#8a9097
-
-# Bright colors (8-15)
-palette = 8=#404751
-palette = 9=#e06c75
-palette = 10=#49bd98
-palette = 11=#fdce6f
-palette = 12=#3b8eea
-palette = 13=#a27fd9
-palette = 14=#50b4dc
-palette = 15=#ffffff
+# Theme: auto-switch between Glacier (dark) and SeedFlip Glacier (light)
+theme = light:SeedFlip Glacier,dark:Glacier
 
 # Key bindings - similar to iTerm2 defaults
 keybind = ctrl+shift+c=copy_to_clipboard

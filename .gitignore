@@ -1,3 +1,4 @@
 .history
 .DS_Store
 git/gitconfig.local.symlink
+zsh/zshlocal.symlink

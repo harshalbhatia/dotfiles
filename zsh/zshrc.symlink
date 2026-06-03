@@ -64,9 +64,6 @@ if [[ "$TERM_PROGRAM" == "iTerm.app" ]] && [ -e "${HOME}/.iterm2_shell_integrati
   source "${HOME}/.iterm2_shell_integration.zsh"
 fi
 
-# Added by Windsurf
-export PATH="$HOME/.codeium/windsurf/bin:$PATH"
-
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:$HOME/.lmstudio/bin"
 # End of LM Studio CLI section
@@ -87,3 +84,11 @@ export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 
 # Added by Antigravity
 export PATH="$HOME/.antigravity/antigravity/bin:$PATH"
+
+# Added by aisw
+eval "$(aisw shell-hook zsh)"
+
+# Keep mise-managed tools ahead of later PATH additions.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi

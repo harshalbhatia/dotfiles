@@ -8,10 +8,14 @@
 DOTFILES_ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 
 # Define managed cron jobs (one per line, ending with a # tag for identification)
-MANAGED_JOBS="0 9 * * * $DOTFILES_ROOT/script/brew-dump.sh # brew-dump"
+MANAGED_JOBS=$(cat <<EOF
+0 9 * * * $DOTFILES_ROOT/script/brew-dump.sh # brew-dump
+0 */6 * * * $DOTFILES_ROOT/exec/claude-memory-ingest # claude-memory-ingest
+EOF
+)
 
 # Get existing crontab, stripping out any previously managed jobs
-existing=$(crontab -l 2>/dev/null | grep -v '# brew-dump$')
+existing=$(crontab -l 2>/dev/null | grep -v '# brew-dump$' | grep -v '# claude-memory-ingest$')
 
 # Combine existing + managed jobs
 printf '%s\n%s\n' "$existing" "$MANAGED_JOBS" | crontab -

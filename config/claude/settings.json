@@ -1,0 +1,43 @@
+{
+  "env": {
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '.cwd // empty' | sed \"s|^$HOME|~|\"); style=$(echo \"$input\" | jq -r '.output_style.name // empty'); ctx=$(echo \"$input\" | jq -r '.context_window.remaining_percentage // empty'); cost=$(echo \"$input\" | jq -r '.cost.total_cost_usd // 0'); branch=$(git -C \"$(echo \"$input\" | jq -r '.cwd // \".\"')\" branch --show-current 2>/dev/null); parts=''; if [ -n \"$cwd\" ] && [ -n \"$branch\" ]; then parts=\"$cwd [$branch]\"; elif [ -n \"$cwd\" ]; then parts=\"$cwd\"; fi; if [ -n \"$style\" ]; then parts=\"$parts | $style\"; fi; if [ -n \"$ctx\" ]; then parts=\"$parts | ${ctx}% ctx left\"; fi; cost_fmt=$(printf \"$%.2f\" \"$cost\"); parts=\"$parts | $cost_fmt\"; echo \"$parts\""
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true,
+    "frontend-design@claude-plugins-official": true,
+    "codex@openai-codex": true,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "product-management@knowledge-work-plugins": true
+  },
+  "extraKnownMarketplaces": {
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
+    },
+    "chrome-devtools-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ChromeDevTools/chrome-devtools-mcp"
+      }
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      }
+    }
+  },
+  "outputStyle": "default",
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
+  "showThinkingSummaries": true,
+  // "skipDangerousModePermissionPrompt": true,
+  "theme": "auto",
+  "tui": "fullscreen"
+}

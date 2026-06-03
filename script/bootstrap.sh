@@ -224,6 +224,36 @@ install_dotfiles () {
     success "linked alacritty config"
   fi
 
+  # Link Topgrade config
+  if [ -f "$DOTFILES_ROOT/config/topgrade/topgrade.toml" ]; then
+    link_file "$DOTFILES_ROOT/config/topgrade/topgrade.toml" "$HOME/.config/topgrade.toml"
+    success "linked topgrade config"
+  fi
+
+  # Link Claude Code config
+  if [ -d "$DOTFILES_ROOT/config/claude" ]; then
+    mkdir -p "$HOME/.claude"
+    link_file "$DOTFILES_ROOT/config/claude/settings.json" "$HOME/.claude/settings.json"
+    # Link custom agents
+    if [ -d "$DOTFILES_ROOT/config/claude/agents" ]; then
+      mkdir -p "$HOME/.claude/agents"
+      for agent in "$DOTFILES_ROOT/config/claude/agents"/*.md; do
+        [ -f "$agent" ] && link_file "$agent" "$HOME/.claude/agents/$(basename "$agent")"
+      done
+    fi
+    # Link custom skills into ~/.agents/skills (canonical) — ~/.claude and ~/.codex symlink from there
+    if [ -d "$DOTFILES_ROOT/config/claude/skills" ]; then
+      mkdir -p "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills"
+      for skill in "$DOTFILES_ROOT/config/claude/skills"/*/; do
+        skill_name="$(basename "$skill")"
+        link_file "$skill" "$HOME/.agents/skills/$skill_name"
+        link_file "$HOME/.agents/skills/$skill_name" "$HOME/.claude/skills/$skill_name"
+        link_file "$HOME/.agents/skills/$skill_name" "$HOME/.codex/skills/$skill_name"
+      done
+    fi
+    success "linked claude code config"
+  fi
+
   # Configure iTerm2 to use dotfiles preferences
   if [ -d "$DOTFILES_ROOT/config/iterm" ]; then
     info "configuring iTerm2 to use dotfiles preferences"

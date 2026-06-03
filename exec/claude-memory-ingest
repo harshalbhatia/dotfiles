@@ -1,0 +1,467 @@
+#!/usr/bin/env bash
+#
+# claude-memory-ingest
+#
+# Reads recent Claude Code conversations and extracts user preferences,
+# workflow patterns, and project context into memory files.
+#
+# Usage:
+#   claude-memory-ingest              # process sessions since last run
+#   claude-memory-ingest --all        # reprocess all sessions
+#   claude-memory-ingest --dry-run    # show what would be processed
+#   claude-memory-ingest --since 48h  # sessions modified in last 48 hours
+
+set -euo pipefail
+
+CLAUDE_DIR="$HOME/.claude"
+CODEX_DIR="$HOME/.codex"
+PROJECTS_DIR="$CLAUDE_DIR/projects"
+STATE_FILE="$CLAUDE_DIR/memory-ingest-state.json"
+LOG_FILE="$CLAUDE_DIR/memory-ingest.log"
+MAX_CHARS_PER_SESSION=30000  # truncate long sessions
+
+# --- flags ---
+DRY_RUN=false
+PROCESS_ALL=false
+SINCE_HOURS=24
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=true; shift ;;
+    --all) PROCESS_ALL=true; shift ;;
+    --since)
+      SINCE_HOURS="${2%h}"  # strip trailing 'h' if present
+      shift 2 ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+log() {
+  local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+  echo "$msg" | tee -a "$LOG_FILE"
+}
+
+# --- state management ---
+get_last_run() {
+  if [[ -f "$STATE_FILE" ]]; then
+    python3 -c "import json; print(json.load(open('$STATE_FILE')).get('last_run_epoch', 0))"
+  else
+    echo 0
+  fi
+}
+
+save_state() {
+  local now_epoch
+  now_epoch=$(date +%s)
+  python3 -c "
+import json
+state = {'last_run_epoch': $now_epoch, 'last_run': '$(date -u '+%Y-%m-%dT%H:%M:%SZ')'}
+json.dump(state, open('$STATE_FILE', 'w'), indent=2)
+"
+}
+
+# --- extract conversation text from a session JSONL ---
+extract_conversation() {
+  local jsonl_path="$1"
+  python3 - "$jsonl_path" "$MAX_CHARS_PER_SESSION" << 'PYEOF'
+import json, sys
+
+jsonl_path = sys.argv[1]
+max_chars = int(sys.argv[2])
+output = []
+total = 0
+
+with open(jsonl_path) as f:
+    for line in f:
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        msg_type = obj.get("type", "")
+        if msg_type not in ("user", "assistant"):
+            continue
+
+        # skip tool results (user messages that are just tool output)
+        if msg_type == "user" and "toolUseResult" in obj:
+            continue
+
+        msg = obj.get("message", {})
+        if not isinstance(msg, dict):
+            continue
+
+        role = msg.get("role", msg_type)
+        content = msg.get("content", "")
+
+        # extract text from content blocks
+        text_parts = []
+        if isinstance(content, str):
+            text_parts.append(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+
+        text = " ".join(text_parts).strip()
+        if not text:
+            continue
+
+        # skip system/hook noise
+        if text.startswith("<local-command-caveat>"):
+            continue
+        if text.startswith("[analyze-mode]"):
+            continue
+        if text.startswith("You are a memory extraction system"):
+            continue
+
+        # truncate individual messages
+        if len(text) > 2000:
+            text = text[:2000] + "..."
+
+        line_out = f"[{role.upper()}] {text}"
+        if total + len(line_out) > max_chars:
+            output.append("[... truncated ...]")
+            break
+        output.append(line_out)
+        total += len(line_out)
+
+print("\n\n".join(output))
+PYEOF
+}
+
+# --- extract conversation text from a Codex session JSONL ---
+extract_conversation_codex() {
+  local jsonl_path="$1"
+  python3 - "$jsonl_path" "$MAX_CHARS_PER_SESSION" << 'PYEOF'
+import json, sys
+
+jsonl_path = sys.argv[1]
+max_chars = int(sys.argv[2])
+output = []
+total = 0
+
+with open(jsonl_path) as f:
+    for line in f:
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        if obj.get("type") != "response_item":
+            continue
+
+        payload = obj.get("payload", {})
+        role = payload.get("role", "")
+        if role not in ("user", "assistant"):
+            continue
+
+        content = payload.get("content", [])
+        text_parts = []
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    bt = block.get("type", "")
+                    if bt in ("input_text", "output_text", "text"):
+                        text_parts.append(block.get("text", ""))
+        elif isinstance(content, str):
+            text_parts.append(content)
+
+        text = " ".join(text_parts).strip()
+        if not text:
+            continue
+
+        # skip injected context (AGENTS.md, environment_context)
+        if text.startswith("# AGENTS.md"):
+            continue
+        if text.startswith("<environment_context>"):
+            continue
+        if text.startswith("You are a memory extraction system"):
+            continue
+
+        if len(text) > 2000:
+            text = text[:2000] + "..."
+
+        line_out = f"[{role.upper()}] {text}"
+        if total + len(line_out) > max_chars:
+            output.append("[... truncated ...]")
+            break
+        output.append(line_out)
+        total += len(line_out)
+
+print("\n\n".join(output))
+PYEOF
+}
+
+# --- find sessions to process ---
+find_recent_sessions() {
+  local cutoff_epoch="$1"
+
+  python3 - "$PROJECTS_DIR" "$cutoff_epoch" "$CODEX_DIR" << 'PYEOF'
+import json, os, sys, glob
+
+projects_dir = sys.argv[1]
+cutoff_epoch = int(sys.argv[2])
+codex_dir = sys.argv[3]
+
+# --- Claude Code sessions ---
+for jsonl_path in glob.glob(f"{projects_dir}/*/*.jsonl"):
+    basename = os.path.basename(jsonl_path)
+    if basename == "sessions-index.json":
+        continue
+
+    mtime = os.path.getmtime(jsonl_path)
+    if mtime <= cutoff_epoch:
+        continue
+
+    session_id = basename.replace(".jsonl", "")
+    project_dir = os.path.dirname(jsonl_path)
+
+    # extract first user prompt
+    first_prompt = ""
+    try:
+        with open(jsonl_path) as f:
+            for line in f:
+                obj = json.loads(line)
+                if obj.get("type") == "user" and "toolUseResult" not in obj:
+                    msg = obj.get("message", {})
+                    if isinstance(msg, dict):
+                        content = msg.get("content", "")
+                        if isinstance(content, str):
+                            first_prompt = content[:120]
+                        elif isinstance(content, list):
+                            for block in content:
+                                if isinstance(block, dict) and block.get("type") == "text":
+                                    first_prompt = block.get("text", "")[:120]
+                                    break
+                    if first_prompt:
+                        break
+    except Exception:
+        pass
+
+    # derive project path from dir name
+    project_path = project_dir.split("/")[-1].replace("-", "/")
+    if not project_path.startswith("/"):
+        project_path = "/" + project_path
+
+    # source=claude so the main loop knows which extractor to use
+    print(f"claude\t{jsonl_path}\t{session_id}\t{project_dir}\t{project_path}\t{first_prompt}")
+
+# --- Codex sessions ---
+if os.path.isdir(codex_dir):
+    # build thread name lookup from session_index.jsonl
+    thread_names = {}
+    idx_path = os.path.join(codex_dir, "session_index.jsonl")
+    if os.path.exists(idx_path):
+        with open(idx_path) as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                    thread_names[obj.get("id", "")] = obj.get("thread_name", "")
+                except:
+                    pass
+
+    for jsonl_path in glob.glob(f"{codex_dir}/sessions/**/*.jsonl", recursive=True):
+        mtime = os.path.getmtime(jsonl_path)
+        if mtime <= cutoff_epoch:
+            continue
+
+        basename = os.path.basename(jsonl_path)
+        # extract session id from filename: rollout-DATETIME-UUID.jsonl
+        parts = basename.replace(".jsonl", "").split("-", 2)
+        session_id = parts[-1] if len(parts) >= 3 else basename.replace(".jsonl", "")
+        # extract the full UUID (last 36 chars of filename minus .jsonl)
+        fname_no_ext = basename.replace(".jsonl", "")
+        # UUID is the last 36 chars
+        if len(fname_no_ext) >= 36:
+            uuid_part = fname_no_ext[-36:]
+        else:
+            uuid_part = fname_no_ext
+        session_id = uuid_part
+
+        # get thread name or first user prompt
+        first_prompt = thread_names.get(session_id, "")
+        if not first_prompt:
+            try:
+                with open(jsonl_path) as f:
+                    for line in f:
+                        obj = json.loads(line)
+                        if obj.get("type") == "response_item":
+                            p = obj.get("payload", {})
+                            if p.get("role") == "user":
+                                content = p.get("content", [])
+                                if isinstance(content, list):
+                                    for b in content:
+                                        if isinstance(b, dict) and b.get("type") in ("input_text", "text"):
+                                            t = b.get("text", "")
+                                            if t and not t.startswith("# AGENTS") and not t.startswith("<environment"):
+                                                first_prompt = t[:120]
+                                                break
+                                if first_prompt:
+                                    break
+            except Exception:
+                pass
+
+        # derive project from session_meta cwd
+        project_path = ""
+        try:
+            with open(jsonl_path) as f:
+                first_line = json.loads(f.readline())
+                if first_line.get("type") == "session_meta":
+                    project_path = first_line.get("payload", {}).get("cwd", "")
+        except Exception:
+            pass
+
+        # memory goes to the claude project dir matching the cwd, or a codex-specific dir
+        encoded = project_path.replace("/", "-") if project_path else "-codex"
+        claude_project_dir = os.path.join(projects_dir, encoded)
+        if not os.path.isdir(claude_project_dir):
+            # fall back to codex-specific memory dir
+            claude_project_dir = os.path.join(codex_dir, "memory-ingest")
+
+        print(f"codex\t{jsonl_path}\t{session_id}\t{claude_project_dir}\t{project_path}\t{first_prompt}")
+PYEOF
+}
+
+# --- ask claude to extract memories ---
+extract_memories() {
+  local conversation="$1"
+  local project_path="$2"
+  local existing_memories="$3"
+
+  # write inputs to temp files to avoid quoting hell
+  local tmpdir
+  tmpdir=$(mktemp -d)
+  printf '%s' "$conversation" > "$tmpdir/conv.txt"
+  printf '%s' "$existing_memories" > "$tmpdir/existing.txt"
+  printf '%s' "$project_path" > "$tmpdir/project.txt"
+
+  python3 - "$tmpdir" << 'PYEOF' | claude --print --model sonnet 2>/dev/null
+import sys, os
+tmpdir = sys.argv[1]
+conv = open(f"{tmpdir}/conv.txt").read()
+existing = open(f"{tmpdir}/existing.txt").read()
+project = open(f"{tmpdir}/project.txt").read()
+print(f"""You are a memory extraction system for Claude Code. Analyze this conversation and extract useful memories about the user preferences, workflows, projects, and environment.
+
+RULES:
+- Only extract DURABLE preferences/patterns (not one-off requests)
+- Skip anything already captured in existing memories
+- Output valid markdown list items, one per memory
+- Each memory: concise, actionable, starts with a category tag
+- Categories: [preference], [workflow], [project], [tool], [env], [pattern]
+- If nothing new to extract, output exactly: NONE
+- Max 5 memories per conversation
+- Be specific - vague memories are useless
+
+EXISTING MEMORIES (do not duplicate):
+---
+{existing}
+---
+
+CONVERSATION (from project: {project}):
+---
+{conv}
+---
+
+Output only the markdown list items (or NONE). No preamble.""")
+PYEOF
+
+  rm -rf "$tmpdir"
+}
+
+# --- get or create memory file for a project dir ---
+get_memory_file() {
+  local project_dir="$1"
+  local memory_dir="$project_dir/memory"
+  local memory_file="$memory_dir/MEMORY.md"
+
+  if [[ ! -d "$memory_dir" ]]; then
+    mkdir -p "$memory_dir"
+  fi
+  if [[ ! -f "$memory_file" ]]; then
+    touch "$memory_file"
+  fi
+  echo "$memory_file"
+}
+
+# --- main ---
+main() {
+  log "Starting claude-memory-ingest"
+
+  local cutoff_epoch
+  if $PROCESS_ALL; then
+    cutoff_epoch=0
+    log "Processing ALL sessions"
+  else
+    local last_run
+    last_run=$(get_last_run)
+    if [[ "$last_run" -eq 0 ]]; then
+      # first run — default to SINCE_HOURS
+      cutoff_epoch=$(( $(date +%s) - SINCE_HOURS * 3600 ))
+    else
+      cutoff_epoch=$last_run
+    fi
+    log "Processing sessions since epoch $cutoff_epoch ($(date -r "$cutoff_epoch" '+%Y-%m-%d %H:%M' 2>/dev/null || echo 'unknown'))"
+  fi
+
+  local sessions_found=0
+  local memories_added=0
+
+  while IFS=$'\t' read -r jsonl_path session_id project_dir project_path first_prompt; do
+    [[ -z "$jsonl_path" ]] && continue
+    [[ ! -f "$jsonl_path" ]] && continue
+
+    sessions_found=$((sessions_found + 1))
+    log "Processing: $session_id ($first_prompt)"
+
+    if $DRY_RUN; then
+      log "  [dry-run] would process $jsonl_path"
+      continue
+    fi
+
+    # extract conversation text
+    local conversation
+    conversation=$(extract_conversation "$jsonl_path")
+
+    if [[ -z "$conversation" || ${#conversation} -lt 100 ]]; then
+      log "  Skipping — too short"
+      continue
+    fi
+
+    # get existing memories
+    local memory_file
+    memory_file=$(get_memory_file "$project_dir")
+    local existing_memories
+    existing_memories=$(cat "$memory_file" 2>/dev/null || echo "")
+
+    # ask claude to extract
+    local new_memories
+    new_memories=$(extract_memories "$conversation" "$project_path" "$existing_memories" || true)
+
+    if [[ -z "$new_memories" || "$new_memories" == "NONE" ]]; then
+      log "  No new memories"
+      continue
+    fi
+
+    # append to memory file
+    {
+      echo ""
+      echo "<!-- session: $session_id | $(date -u '+%Y-%m-%dT%H:%M:%SZ') -->"
+      echo "$new_memories"
+    } >> "$memory_file"
+
+    local count
+    count=$(echo "$new_memories" | grep -c "^- " || true)
+    memories_added=$((memories_added + count))
+    log "  Added $count memories to $memory_file"
+
+  done < <(find_recent_sessions "$cutoff_epoch")
+
+  if ! $DRY_RUN; then
+    save_state
+  fi
+
+  log "Done. Sessions processed: $sessions_found, memories added: $memories_added"
+}
+
+main

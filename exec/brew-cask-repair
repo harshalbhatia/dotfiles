@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# brew-cask-repair: Detect and reinstall broken brew cask apps.
+# A cask app is "broken" if its .app directory exists but has no Contents/Info.plist,
+# meaning the bundle is empty or corrupted.
+
+set -euo pipefail
+
+BOLD='\033[1m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RESET='\033[0m'
+
+broken_count=0
+fixed_count=0
+failed=()
+
+echo -e "${BOLD}Checking brew cask apps for broken bundles...${RESET}"
+
+while IFS= read -r cask; do
+  # Get the installed app artifacts from brew's receipt
+  # brew info --cask outputs lines like: /Applications/App.app (App Store)
+  while IFS= read -r app_path; do
+    [ -z "$app_path" ] && continue
+
+    # Only check paths that end in .app
+    [[ "$app_path" == *.app ]] || continue
+
+    # Skip if the .app doesn't exist on disk at all (unlinked but still in brew list)
+    [ -d "$app_path" ] || continue
+
+    # Check for valid bundle
+    if [ ! -f "$app_path/Contents/Info.plist" ]; then
+      ((broken_count++))
+      echo -e "${YELLOW}Broken:${RESET} $app_path (cask: $cask)"
+
+      # Remove the empty/broken .app and reinstall
+      echo -e "  Removing empty bundle and reinstalling..."
+      if rm -rf "$app_path" && brew reinstall --cask --force "$cask" 2>&1 | tail -1; then
+        ((fixed_count++))
+        echo -e "  ${GREEN}Fixed!${RESET}"
+      else
+        failed+=("$cask")
+        echo -e "  ${RED}Failed to reinstall${RESET}"
+      fi
+    fi
+  done < <(brew info --cask --json=v2 "$cask" 2>/dev/null \
+    | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for c in data.get('casks', []):
+    for a in c.get('artifacts', []):
+        if isinstance(a, dict) and 'app' in a:
+            for app in a['app']:
+                print('/Applications/' + (app if isinstance(app, str) else app[0]))
+" 2>/dev/null)
+done < <(brew list --cask 2>/dev/null)
+
+echo ""
+if [ "$broken_count" -eq 0 ]; then
+  echo -e "${GREEN}All brew cask apps are healthy!${RESET}"
+else
+  echo -e "${BOLD}Found $broken_count broken app(s), fixed $fixed_count.${RESET}"
+  if [ ${#failed[@]} -gt 0 ]; then
+    echo -e "${RED}Failed to fix: ${failed[*]}${RESET}"
+  fi
+fi
