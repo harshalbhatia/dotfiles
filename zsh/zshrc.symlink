@@ -37,6 +37,18 @@ HISTFILE=$HOME/.zsh_history
 HISTSIZE=100000
 SAVEHIST=$HISTSIZE
 
+# Keep secret-shaped strings out of shell history.
+# Any command matching this glob is silently dropped — never written to
+# $HISTFILE, never recalled by up-arrow / `history`.
+# Patterns cover: GitHub PATs (classic + fine-grained), Anthropic, OpenAI,
+# Google AI Studio, AWS access-keys (AKIA/ASIA prefix), Slack tokens,
+# Stripe live keys, Stripe webhook secrets.
+HISTORY_IGNORE='*(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|sk-ant-|sk-proj-|sk-live_|AKIA|ASIA|xoxb-|xoxp-|xoxs-|AIzaSy|whsec_|sk_live_|rk_live_|pk_live_|gcs_|hf_|tk_)*'
+
+# Also drop commands starting with a literal space (manual escape hatch:
+# prefix any sensitive command with ' ' to keep it out of history).
+setopt HIST_IGNORE_SPACE
+
 # Enable zsh-syntax-highlighting: https://github.com/zsh-users/zsh-syntax-highlighting
 # [ -f /usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source /usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
