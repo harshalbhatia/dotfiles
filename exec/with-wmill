@@ -1,0 +1,46 @@
+#!/bin/sh
+# with-wmill — run `wmill` with config materialized from Keychain.
+#
+# The wmill CLI requires a config dir containing `remotes.ndjson` (with the API
+# token) and `activeWorkspace`. This wrapper:
+#   1. Fetches the NDJSON content from Keychain via `with-secret wmill`
+#   2. Writes it to a 0700 tempdir as remotes.ndjson + activeWorkspace
+#   3. Exports WMILL_CONFIG_DIR pointing at that tempdir
+#   4. Runs `wmill "$@"`
+#   5. Trap-deletes the tempdir on exit (success or failure)
+#
+# The plaintext NDJSON exists on disk ONLY for the duration of one wmill
+# invocation, in a private tempdir, then is removed.
+#
+# Usage:
+#   with-wmill workspace whoami
+#   with-wmill flow run f/cs/get_line_info -d '{"msisdn":"..."}'
+#   with-wmill version
+
+set -eu
+
+# Compose: outer = with-secret wmill --file -- inner
+# Inner script materializes the config dir, exports WMILL_CONFIG_DIR, runs wmill.
+exec with-secret wmill --file -- /bin/sh -c '
+    set -eu
+
+    # wmill expects a "windmill" subdir inside the config dir
+    cfgroot=$(mktemp -d -t with-wmill)
+    chmod 700 "$cfgroot"
+    mkdir -p "$cfgroot/windmill"
+    chmod 700 "$cfgroot/windmill"
+    # /bin/rm to bypass any rm-aliased-to-trash
+    trap "/bin/rm -rf \"$cfgroot\"" EXIT INT TERM HUP
+
+    # Copy the NDJSON tempfile (created by with-secret --file) into place
+    cp "$WMILL_FILE" "$cfgroot/windmill/remotes.ndjson"
+    chmod 600 "$cfgroot/windmill/remotes.ndjson"
+
+    # Derive activeWorkspace from the NDJSON entry name field
+    # IMPORTANT: no trailing newline (matches the real wmill format)
+    printf "%s" "$(jq -r .name "$cfgroot/windmill/remotes.ndjson")" > "$cfgroot/windmill/activeWorkspace"
+    chmod 600 "$cfgroot/windmill/activeWorkspace"
+
+    export WMILL_CONFIG_DIR="$cfgroot"
+    wmill "$@"
+' with-wmill "$@"
