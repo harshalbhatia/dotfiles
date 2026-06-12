@@ -1,0 +1,35 @@
+#!/bin/sh
+# Global pre-commit hook installed via:  git config --global core.hooksPath ~/dotfiles/git-hooks
+#
+# 1) Runs `gitleaks protect --staged` against the staged changes. If it finds
+#    secret-shape strings, the commit is blocked.
+# 2) Chains to the repo-local pre-commit hook (if any) so existing per-repo
+#    hooks still run.
+#
+# Bypass (use sparingly): `git commit --no-verify`.
+
+set -u
+
+# --- 1) gitleaks staged scan ---
+if command -v gitleaks >/dev/null 2>&1; then
+    if ! gitleaks protect --staged --no-banner --redact -v >&2; then
+        cat >&2 <<'EOF'
+
+[pre-commit] gitleaks found secret-shape strings in your staged changes.
+Review the report above, remove the values, then `git add` and try again.
+Or `git commit --no-verify` to bypass (do not push such commits without
+rotating the value first).
+Hook: ~/dotfiles/git-hooks/pre-commit
+
+EOF
+        exit 1
+    fi
+fi
+
+# --- 2) Chain to repo-local pre-commit if one exists ---
+LOCAL="$(git rev-parse --git-dir 2>/dev/null)/hooks/pre-commit"
+if [ -x "$LOCAL" ] && [ "$(/usr/bin/stat -f %i "$LOCAL" 2>/dev/null)" != "$(/usr/bin/stat -f %i "$0" 2>/dev/null)" ]; then
+    exec "$LOCAL" "$@"
+fi
+
+exit 0
