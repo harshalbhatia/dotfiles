@@ -382,6 +382,18 @@ run_bootstrap() {
 
   # Brew bundle (non-fatal: some casks may fail to download)
   export HOMEBREW_CURL_RETRIES=5
+
+  # Newer Homebrew refuses formulas from untrusted third-party taps, which
+  # aborts `brew bundle` on fresh machines. Taps listed in the Brewfile are
+  # our own declared intent, so trust them up front. Older brews have no
+  # `trust` subcommand — skip there.
+  if brew trust --help >/dev/null 2>&1; then
+    info "trusting Brewfile taps"
+    sed -nE 's/^tap "([^"]+)".*/\1/p' "$DOTFILES_ROOT/Brewfile" | while read -r t; do
+      brew trust "$t" >/dev/null 2>&1 || info "could not trust tap: $t"
+    done
+  fi
+
   info "installing brew packages (pass 1)"
   if ! brew bundle --verbose --file="$DOTFILES_ROOT/Brewfile"; then
     info "some packages failed — retrying once"
