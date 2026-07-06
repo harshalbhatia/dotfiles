@@ -32,6 +32,17 @@ VM_NAME="dotfiles-test-$$"
 
 cleanup() {
   status=$?
+  # Salvage the full bootstrap log before the VM disappears.
+  if [ -f "/tmp/${VM_NAME}.ip" ]; then
+    LOG_DEST="${TMPDIR:-/tmp}/${VM_NAME}-bootstrap.log"
+    if sshpass -p "${DOTFILES_TEST_SSH_PASS:-admin}" scp \
+        -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR -F /dev/null \
+        "${DOTFILES_TEST_SSH_USER:-admin}@$(cat "/tmp/${VM_NAME}.ip"):bootstrap.log" \
+        "$LOG_DEST" 2>/dev/null; then
+      log_info "guest bootstrap log saved to $LOG_DEST"
+    fi
+  fi
   if [ "$KEEP" = "1" ]; then
     log_warn "--keep: leaving VM $VM_NAME running (IP: $(cat "/tmp/${VM_NAME}.ip" 2>/dev/null || echo '?'))"
     log_warn "teardown later with: $HERE/teardown.sh $VM_NAME"

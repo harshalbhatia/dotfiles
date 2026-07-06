@@ -19,8 +19,16 @@ BOOT_TIMEOUT="${DOTFILES_TEST_BOOT_TIMEOUT:-300}"   # seconds to wait for SSH
 need tart "brew install cirruslabs/cli/tart"
 need sshpass "brew install sshpass"
 
+DISK_GB="${DOTFILES_TEST_DISK_GB:-100}"
+
 log_info "cloning $BASE_IMAGE -> $VM_NAME (first pull downloads ~25-40GB)"
 tart clone "$BASE_IMAGE" "$VM_NAME"
+
+# The base image ships a 50GB disk with ~18GB free — not enough for a full
+# `brew bundle`. Grow it here; the guest-side APFS resize happens in
+# provision.sh. (Disk is thin-provisioned: only used blocks hit the host.)
+log_info "growing VM disk to ${DISK_GB}GB"
+tart set "$VM_NAME" --disk-size "$DISK_GB"
 
 log_info "starting VM headless"
 # --no-audio: headless contexts can lack the audio-output sandbox entitlement,

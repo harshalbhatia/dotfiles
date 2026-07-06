@@ -25,6 +25,13 @@ vm_ssh() {
     "$SSH_USER@$VM_IP" "$@"
 }
 
+# Expand the guest APFS container into the space added by `tart set
+# --disk-size` (boot.sh). Best-effort: on an ungrown disk this is a no-op.
+log_info "resizing guest APFS container to fill the disk"
+vm_ssh 'echo y | sudo diskutil repairDisk disk0 >/dev/null 2>&1 || true
+  sudo diskutil apfs resizeContainer disk0s2 0 >/dev/null 2>&1 || true
+  df -h / | tail -1'
+
 case "$MODE" in
   local)
     log_head "provision: local working copy -> ~/dotfiles"
