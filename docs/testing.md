@@ -47,6 +47,16 @@ Knobs (env):
 - `TART_HOME` — where tart keeps images/VMs (default `~/.tart`). Each cached
   base image is ~25–40 GB.
 
+### Troubleshooting
+
+- **`VZErrorDomain … "Failed to issue audio output sandbox extension"` right
+  after "starting VM headless"**: the calling process is inside a sandbox
+  (e.g. a `sandbox-exec` wrapper around an agent session). Virtualization
+  .framework refuses to start VMs from such contexts regardless of flags —
+  run `script/test/run.sh vm` from a plain terminal instead.
+- **`failed to lock … .tart/cache … Bad file descriptor` / permission errors
+  on `~/.tart`**: point tart elsewhere with `TART_HOME=/path/to/dir`.
+
 ### Known coverage gaps
 
 - The `xcode-select --install` step in `script/install.sh` cannot be tested

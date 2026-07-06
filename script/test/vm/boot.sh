@@ -23,7 +23,10 @@ log_info "cloning $BASE_IMAGE -> $VM_NAME (first pull downloads ~25-40GB)"
 tart clone "$BASE_IMAGE" "$VM_NAME"
 
 log_info "starting VM headless"
-tart run --no-graphics "$@" "$VM_NAME" &
+# --no-audio: headless contexts can lack the audio-output sandbox entitlement,
+# which otherwise fails VM start with VZErrorDomain "audio output sandbox
+# extension"; a test VM needs no sound anyway.
+tart run --no-graphics --no-audio "$@" "$VM_NAME" &
 TART_RUN_PID=$!
 echo "$TART_RUN_PID" > "/tmp/${VM_NAME}.tartpid"
 
