@@ -2,3 +2,4 @@
 .DS_Store
 git/gitconfig.local.symlink
 zsh/zshlocal.symlink
+dotfiles-testing-report.html
