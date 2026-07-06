@@ -389,7 +389,13 @@ run_bootstrap() {
   # `trust` subcommand — skip there.
   if brew trust --help >/dev/null 2>&1; then
     info "trusting Brewfile taps"
-    sed -nE 's/^tap "([^"]+)".*/\1/p' "$DOTFILES_ROOT/Brewfile" | while read -r t; do
+    # Both declared taps and taps implied by fully-qualified formula names
+    # (brew "owner/repo/formula") — brew auto-taps the latter, and one
+    # untrusted tap aborts the entire bundle fetch.
+    {
+      sed -nE 's/^tap "([^"]+)".*/\1/p' "$DOTFILES_ROOT/Brewfile"
+      sed -nE 's/^(brew|cask) "([^"\/]+\/[^"\/]+)\/[^"\/]+".*/\2/p' "$DOTFILES_ROOT/Brewfile"
+    } | sort -u | while read -r t; do
       brew trust "$t" >/dev/null 2>&1 || info "could not trust tap: $t"
     done
   fi

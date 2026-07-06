@@ -39,9 +39,11 @@ case "$MODE" in
     log_ok "repo copied into guest"
 
     log_head "running bootstrap (non-interactive) — this takes a while (brew bundle)"
-    vm_ssh "DOTFILES_NONINTERACTIVE=1 \
+    # Full output goes to ~/bootstrap.log in the guest (fetch it with:
+    #   ssh admin@<ip> cat bootstrap.log); stream a filtered view here.
+    vm_ssh "set -o pipefail; DOTFILES_NONINTERACTIVE=1 \
       DOTFILES_GIT_NAME='VM Test' DOTFILES_GIT_EMAIL='vm-test@example.com' \
-      bash ~/dotfiles/script/bootstrap.sh" 2>&1 | tail -100
+      bash ~/dotfiles/script/bootstrap.sh 2>&1 | tee ~/bootstrap.log | tail -160"
     ;;
   github)
     log_head "provision: real curl|bash install from GitHub main"
