@@ -362,6 +362,13 @@ ssh_keygen() {
 }
 
 run_bootstrap() {
+  # Fresh machines (and non-login shells, e.g. SSH'd test VMs) don't have
+  # /opt/homebrew/bin on PATH yet; without this, every `brew` call below
+  # silently fails with "command not found".
+  if ! command -v brew >/dev/null 2>&1 && [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  fi
+
   setup_hostname
   setup_gitconfig
   install_dotfiles
