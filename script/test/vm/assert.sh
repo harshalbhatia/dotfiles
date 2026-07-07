@@ -64,8 +64,15 @@ check "exec/ on PATH (dot resolves)" 'zsh -i -c "command -v dot" '
 # packages must all be installed. Full mode: informational only, since casks
 # and mas entries legitimately flake in a headless/unsigned VM.
 if [ "${DOTFILES_TEST_FULL:-0}" != "1" ]; then
-  check "brew bundle check passes (smoke Brewfile)" \
-    'eval "$(/opt/homebrew/bin/brew shellenv)"; brew bundle check --file="$HOME/dotfiles/Brewfile"'
+  # Hard assertion, with output preserved — a silent bundle-check failure is
+  # undiagnosable after the VM is gone.
+  if out=$(vm_ssh 'eval "$(/opt/homebrew/bin/brew shellenv)"; brew bundle check --verbose --file="$HOME/dotfiles/Brewfile"' 2>&1); then
+    log_ok "brew bundle check passes (smoke Brewfile)"
+  else
+    log_fail "brew bundle check passes (smoke Brewfile)"
+    printf '%s\n' "$out" | sed 's/^/      /' >&2
+    fails=$((fails + 1))
+  fi
 else
   log_info "brew bundle check (informational in --full mode)"
   if vm_ssh 'eval "$(/opt/homebrew/bin/brew shellenv)"; brew bundle check --file="$HOME/dotfiles/Brewfile"' 2>&1 | tail -5; then
