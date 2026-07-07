@@ -8,7 +8,8 @@ Two layers, one entrypoint: `script/test/run.sh`.
 | `script/test/run.sh lint` | shellcheck over bash/sh scripts | seconds |
 | `script/test/run.sh syntax` | `bash -n` / `sh -n` / `zsh -n` on every script | seconds |
 | `script/test/run.sh unit` | bats unit tests (`script/test/unit/`) | seconds |
-| `script/test/run.sh vm` | full bootstrap on a fresh macOS VM (Layer 2) | ~1–2 h first run (image pull + brew bundle), less after |
+| `script/test/run.sh vm` | bootstrap on a fresh macOS VM, smoke Brewfile (Layer 2) | ~10–15 min (+ one-time ~30 GB image pull) |
+| `script/test/run.sh vm --full` | same but installs the entire real Brewfile | 1–2 h |
 | `script/test/run.sh all` | fast + vm | — |
 
 Toolchain: `shellcheck`, `shfmt`, `bats-core`, `tart` (all in the Brewfile;
@@ -27,10 +28,21 @@ Toolchain: `shellcheck`, `shfmt`, `bats-core`, `tart` (all in the Brewfile;
 ## Layer 2 — VM e2e (tart)
 
 ```
-script/test/run.sh vm            # inject local working copy (default)
-script/test/run.sh vm --github   # real `curl | bash` against GitHub main
+script/test/run.sh vm            # local working copy + smoke Brewfile (default)
+script/test/run.sh vm --full     # install the entire real Brewfile
+script/test/run.sh vm --github   # real `curl | bash` against GitHub main (implies --full)
 script/test/run.sh vm --keep     # leave the VM running for debugging
 ```
+
+**Smoke Brewfile (default):** instead of installing everything, the guest's
+Brewfile is swapped for three representative entries — one core formula
+(prefers `jq`), one cask (prefers `the-unarchiver`), and one third-party-tap
+formula (prefers `yakitrak/yakitrak/obsidian-cli`, which also exercises
+implied-tap trusting). Picks fall back to the first entry of each kind in the
+real Brewfile and can be overridden via `DOTFILES_TEST_SMOKE_FORMULA`,
+`DOTFILES_TEST_SMOKE_CASK`, `DOTFILES_TEST_SMOKE_TAP_FORMULA`. In smoke mode
+`brew bundle check` is a hard assertion; in `--full` it is informational
+(casks/mas flake headless).
 
 Flow: `tart clone` the base image → boot headless → wait for SSH →
 copy the repo in (or curl from GitHub) → run

@@ -33,6 +33,28 @@ vm_ssh 'echo y | sudo diskutil repairDisk disk0 >/dev/null 2>&1 || true
   sudo diskutil apfs resizeContainer disk0s2 0 >/dev/null 2>&1 || true
   df -h / | tail -1'
 
+# Build the smoke Brewfile (default). One representative of each install
+# kind; the qualified tap formula also exercises implied-tap trusting.
+# Preferred picks are cheap/small; fall back to the first entry of each kind
+# still present in the real Brewfile so daily dumps can't break the harness.
+smoke_brewfile() {
+  local bf="$REPO_ROOT/Brewfile" formula cask tap_formula
+  formula="${DOTFILES_TEST_SMOKE_FORMULA:-}"
+  [ -n "$formula" ] || formula=$(grep -qE '^brew "jq"' "$bf" && echo jq \
+    || sed -nE 's/^brew "([^"\/]+)".*/\1/p' "$bf" | head -1)
+  cask="${DOTFILES_TEST_SMOKE_CASK:-}"
+  [ -n "$cask" ] || cask=$(grep -qE '^cask "the-unarchiver"' "$bf" && echo the-unarchiver \
+    || sed -nE 's/^cask "([^"\/]+)".*/\1/p' "$bf" | head -1)
+  tap_formula="${DOTFILES_TEST_SMOKE_TAP_FORMULA:-}"
+  [ -n "$tap_formula" ] || tap_formula=$(grep -qE '^brew "yakitrak/yakitrak/obsidian-cli"' "$bf" && echo yakitrak/yakitrak/obsidian-cli \
+    || sed -nE 's/^brew "([^"\/]+\/[^"\/]+\/[^"\/]+)".*/\1/p' "$bf" | head -1)
+
+  echo "brew \"$formula\""
+  echo "cask \"$cask\""
+  [ -n "$tap_formula" ] && echo "brew \"$tap_formula\""
+  log_info "smoke Brewfile: $formula + $cask + ${tap_formula:-<no tap formula in Brewfile>}" >&2
+}
+
 case "$MODE" in
   local)
     log_head "provision: local working copy -> ~/dotfiles"
@@ -48,6 +70,11 @@ case "$MODE" in
       /usr/bin/rsync -a --exclude .git --exclude exec/llmctx-src \
         --exclude git/gitconfig.local.symlink "$SRC/" "$HOME/dotfiles/"'
     log_ok "repo copied into guest"
+
+    if [ "${DOTFILES_TEST_FULL:-0}" != "1" ]; then
+      log_info "swapping in smoke Brewfile (pass --full for the real one)"
+      smoke_brewfile | vm_ssh 'cat > ~/dotfiles/Brewfile'
+    fi
 
     log_head "running bootstrap (non-interactive) — this takes a while (brew bundle)"
     # Full output goes to ~/bootstrap.log in the guest (fetch it with:

@@ -60,12 +60,19 @@ check "zsh -i -c exit succeeds" 'zsh -i -c exit'
 # exec/ scripts are on PATH in an interactive shell.
 check "exec/ on PATH (dot resolves)" 'zsh -i -c "command -v dot" '
 
-# brew bundle state: non-fatal — casks flake; report but do not fail the run.
-log_info "brew bundle check (informational)"
-if vm_ssh 'eval "$(/opt/homebrew/bin/brew shellenv)"; brew bundle check --file="$HOME/dotfiles/Brewfile"' 2>&1 | tail -5; then
-  log_ok "brew bundle check passed"
+# brew bundle state. Smoke mode (default): hard assertion — the three smoke
+# packages must all be installed. Full mode: informational only, since casks
+# and mas entries legitimately flake in a headless/unsigned VM.
+if [ "${DOTFILES_TEST_FULL:-0}" != "1" ]; then
+  check "brew bundle check passes (smoke Brewfile)" \
+    'eval "$(/opt/homebrew/bin/brew shellenv)"; brew bundle check --file="$HOME/dotfiles/Brewfile"'
 else
-  log_warn "brew bundle check reported missing packages (non-fatal; casks flake)"
+  log_info "brew bundle check (informational in --full mode)"
+  if vm_ssh 'eval "$(/opt/homebrew/bin/brew shellenv)"; brew bundle check --file="$HOME/dotfiles/Brewfile"' 2>&1 | tail -5; then
+    log_ok "brew bundle check passed"
+  else
+    log_warn "brew bundle check reported missing packages (non-fatal; casks flake)"
+  fi
 fi
 
 if [ "$fails" -eq 0 ]; then
