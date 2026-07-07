@@ -2,10 +2,24 @@
 #
 # bootstrap installs things.
 
-cd "$(dirname "$0")/.."
-DOTFILES_ROOT=$(pwd -P)
-
 set -e
+
+# When sourced with BOOTSTRAP_LIB_ONLY=1, load only the function definitions
+# (used by unit tests) and skip every side effect and the install sequence.
+if [ "${BOOTSTRAP_LIB_ONLY:-0}" != "1" ]; then
+  cd "$(dirname "$0")/.."
+  DOTFILES_ROOT=$(pwd -P)
+fi
+
+# Non-interactive mode: no prompt ever blocks; prompts are driven by env vars
+# with safe defaults. Enabled by DOTFILES_NONINTERACTIVE=1 or --non-interactive.
+# Used by the VM e2e harness (script/test/vm) and useful for unattended setup.
+NONINTERACTIVE="${DOTFILES_NONINTERACTIVE:-0}"
+for arg in "$@"; do
+  case "$arg" in
+    --non-interactive|--noninteractive|-y) NONINTERACTIVE=1 ;;
+  esac
+done
 
 echo ''
 
@@ -39,6 +53,20 @@ setup_hostname() {
     info "Current ComputerName: $current_computer_name"
     info "Current LocalHostName: $current_localhost_name"
     info "Current HostName: $current_host_name (Note: This might be unset)"
+
+    if [ "$NONINTERACTIVE" = "1" ]; then
+      if [ -n "${DOTFILES_HOSTNAME:-}" ]; then
+        info "non-interactive: setting hostname to '$DOTFILES_HOSTNAME'"
+        sudo -n scutil --set ComputerName "$DOTFILES_HOSTNAME" 2>/dev/null \
+          && sudo -n scutil --set LocalHostName "$DOTFILES_HOSTNAME" 2>/dev/null \
+          && sudo -n scutil --set HostName "$DOTFILES_HOSTNAME" 2>/dev/null \
+          && success "hostname set to '$DOTFILES_HOSTNAME'" \
+          || info "could not set hostname (no passwordless sudo?), skipping"
+      else
+        info "non-interactive: no DOTFILES_HOSTNAME set, skipping hostname"
+      fi
+      return
+    fi
 
     user "Do you want to set/update the hostname for this Mac? [y/N]"
     if ! read -n 1 -r reply; then
@@ -102,10 +130,16 @@ setup_gitconfig() {
       git_credential='osxkeychain'
     fi
 
-    user ' - What is your github author name?'
-    read -e git_authorname
-    user ' - What is your github author email?'
-    read -e git_authoremail
+    if [ "$NONINTERACTIVE" = "1" ]; then
+      git_authorname="${DOTFILES_GIT_NAME:-Dotfiles User}"
+      git_authoremail="${DOTFILES_GIT_EMAIL:-dotfiles@example.com}"
+      info "non-interactive: gitconfig as '$git_authorname <$git_authoremail>'"
+    else
+      user ' - What is your github author name?'
+      read -e git_authorname
+      user ' - What is your github author email?'
+      read -e git_authoremail
+    fi
 
     sed -e "s/AUTHORNAME/$git_authorname/g" -e "s/AUTHOREMAIL/$git_authoremail/g" -e "s/GIT_CREDENTIAL_HELPER/$git_credential/g" git/gitconfig.local.symlink.example > git/gitconfig.local.symlink
 
@@ -193,6 +227,10 @@ install_dotfiles () {
   info 'installing dotfiles'
 
   local overwrite_all=false backup_all=false skip_all=false
+
+  # In non-interactive mode, resolve conflicts deterministically by backing up
+  # the existing file rather than prompting.
+  if [ "$NONINTERACTIVE" = "1" ]; then backup_all=true; fi
 
   for src in $(find -H "$DOTFILES_ROOT" -maxdepth 2 -name '*.symlink' ! -path '*.git*')
   do
@@ -312,30 +350,43 @@ ssh_keygen() {
     eval "$(ssh-agent -s)"
   fi
 
+  if [ "$NONINTERACTIVE" = "1" ]; then
+    success 'ssh key ready (non-interactive: not copied to clipboard)'
+    return
+  fi
+
   success 'copied ssh key to clipboard'
 
   pbcopy < "$file"
   cat "$file"
 }
 
-setup_hostname
-setup_gitconfig
-install_dotfiles
-install_oh_my_zsh
-install_z
-ssh_keygen
-install_cron_jobs
+run_bootstrap() {
+  setup_hostname
+  setup_gitconfig
+  install_dotfiles
+  install_oh_my_zsh
+  install_z
+  ssh_keygen
+  install_cron_jobs
 
-# macOS defaults
-"$DOTFILES_ROOT/macos/set-defaults.sh"
+  # macOS defaults
+  "$DOTFILES_ROOT/macos/set-defaults.sh"
 
-# Brew bundle (non-fatal: some casks may fail to download)
-export HOMEBREW_CURL_RETRIES=5
-info "installing brew packages (pass 1)"
-if ! brew bundle --verbose --file="$DOTFILES_ROOT/Brewfile"; then
-  info "some packages failed — retrying once"
-  brew bundle --verbose --file="$DOTFILES_ROOT/Brewfile" || info "brew bundle finished with errors (run 'brew bundle' to retry later)"
+  # Brew bundle (non-fatal: some casks may fail to download)
+  export HOMEBREW_CURL_RETRIES=5
+  info "installing brew packages (pass 1)"
+  if ! brew bundle --verbose --file="$DOTFILES_ROOT/Brewfile"; then
+    info "some packages failed — retrying once"
+    brew bundle --verbose --file="$DOTFILES_ROOT/Brewfile" || info "brew bundle finished with errors (run 'brew bundle' to retry later)"
+  fi
+
+  echo ''
+  echo '  All installed!'
+}
+
+# Only run the install sequence when executed directly, not when sourced by
+# unit tests (BOOTSTRAP_LIB_ONLY=1).
+if [ "${BOOTSTRAP_LIB_ONLY:-0}" != "1" ]; then
+  run_bootstrap
 fi
-
-echo ''
-echo '  All installed!'

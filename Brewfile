@@ -1,6 +1,7 @@
 tap "android/tap"
 tap "atlassian/acli"
 tap "cirruslabs/cli"
+tap "cirruslabs/cli"
 tap "fastrepl/hyprnote"
 tap "hudochenkov/sshpass"
 tap "i-am-bee/beeai"
@@ -23,6 +24,8 @@ brew "apktool"
 brew "openssl@3"
 brew "aria2"
 brew "atool"
+# Bash Automated Testing System (dotfiles test harness)
+brew "bats-core"
 brew "bat"
 brew "cargo-audit"
 brew "container"
@@ -53,10 +56,16 @@ brew "poppler"
 brew "python@3.13"
 brew "rtk"
 brew "scrcpy"
+# Static analysis and lint tool, for (ba)sh scripts (dotfiles test harness)
+brew "shellcheck"
+# Autoformat shell script source code (dotfiles test harness)
+brew "shfmt"
 brew "sops"
 brew "telnet"
 brew "terminal-notifier"
 brew "tesseract"
+# macOS and Linux VMs on Apple Silicon (dotfiles VM e2e tests)
+brew "tart", args: ["no-quarantine"]
 brew "tig"
 brew "tmux"
 brew "topgrade"

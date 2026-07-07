@@ -254,7 +254,7 @@ convert_one() {
   cmd+=(-threads "$THREADS" "$out")
 
   if [[ "$DRYRUN" -eq 1 ]]; then
-    log "DRY-RUN: ${cmd[@]}"
+    log "DRY-RUN: ${cmd[*]}"
     return 0
   fi
 
