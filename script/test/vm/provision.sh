@@ -21,6 +21,7 @@ VM_IP="$(cat "/tmp/${VM_NAME}.ip")"
 vm_ssh() {
   sshpass -p "$SSH_PASS" ssh \
     -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o PubkeyAuthentication=no -o PreferredAuthentications=password \
     -o LogLevel=ERROR -o ServerAliveInterval=15 -F /dev/null \
     "$SSH_USER@$VM_IP" "$@"
 }
@@ -42,7 +43,10 @@ case "$MODE" in
       # Copy (not symlink) so the guest owns real files; exclude the .git objects
       # we do not need and anything huge.
       mkdir -p "$HOME/dotfiles"
-      /usr/bin/rsync -a --exclude .git --exclude exec/llmctx-src "$SRC/" "$HOME/dotfiles/"'
+      # --exclude gitconfig.local.symlink: untracked host identity — the guest
+      # must generate its own (that is part of what we are testing).
+      /usr/bin/rsync -a --exclude .git --exclude exec/llmctx-src \
+        --exclude git/gitconfig.local.symlink "$SRC/" "$HOME/dotfiles/"'
     log_ok "repo copied into guest"
 
     log_head "running bootstrap (non-interactive) — this takes a while (brew bundle)"

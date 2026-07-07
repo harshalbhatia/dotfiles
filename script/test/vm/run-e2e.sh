@@ -37,6 +37,7 @@ cleanup() {
     LOG_DEST="${TMPDIR:-/tmp}/${VM_NAME}-bootstrap.log"
     if sshpass -p "${DOTFILES_TEST_SSH_PASS:-admin}" scp \
         -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o PubkeyAuthentication=no -o PreferredAuthentications=password \
         -o LogLevel=ERROR -F /dev/null \
         "${DOTFILES_TEST_SSH_USER:-admin}@$(cat "/tmp/${VM_NAME}.ip"):bootstrap.log" \
         "$LOG_DEST" 2>/dev/null; then

@@ -47,6 +47,7 @@ log_info "waiting for SSH"
 deadline=$(( $(date +%s) + BOOT_TIMEOUT ))
 until sshpass -p "$SSH_PASS" ssh \
     -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o PubkeyAuthentication=no -o PreferredAuthentications=password \
     -o ConnectTimeout=5 -o LogLevel=ERROR -F /dev/null \
     "$SSH_USER@$VM_IP" true 2>/dev/null; do
   [ "$(date +%s)" -lt "$deadline" ] || die "SSH not reachable within ${BOOT_TIMEOUT}s"

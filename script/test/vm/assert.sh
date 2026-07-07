@@ -14,6 +14,7 @@ VM_IP="$(cat "/tmp/${VM_NAME}.ip")"
 vm_ssh() {
   sshpass -p "$SSH_PASS" ssh \
     -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o PubkeyAuthentication=no -o PreferredAuthentications=password \
     -o LogLevel=ERROR -F /dev/null \
     "$SSH_USER@$VM_IP" "$@"
 }
