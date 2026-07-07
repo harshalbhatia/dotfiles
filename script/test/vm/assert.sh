@@ -21,13 +21,20 @@ vm_ssh() {
 
 fails=0
 check() {  # check <description> <remote command>
-  local desc="$1"; shift
-  if vm_ssh "$@" >/dev/null 2>&1; then
-    log_ok "$desc"
-  else
-    log_fail "$desc"
-    fails=$((fails + 1))
-  fi
+  # Retry: assertions are idempotent reads, and ssh into a freshly booted
+  # guest occasionally throws transient auth failures — one flaky connection
+  # must not fail the run. Output of the last attempt is printed on failure.
+  local desc="$1" out i; shift
+  for i in 1 2 3; do
+    if out=$(vm_ssh "$@" 2>&1); then
+      log_ok "$desc"
+      return
+    fi
+    [ "$i" -lt 3 ] && sleep 5
+  done
+  log_fail "$desc"
+  [ -n "$out" ] && printf '%s\n' "$out" | sed 's/^/      /' >&2
+  fails=$((fails + 1))
 }
 
 log_head "asserting post-bootstrap state in VM"
