@@ -46,7 +46,7 @@ smoke_brewfile() {
   [ -n "$cask" ] || cask=$(grep -qE '^cask "the-unarchiver"' "$bf" && echo the-unarchiver \
     || sed -nE 's/^cask "([^"\/]+)".*/\1/p' "$bf" | head -1)
   tap_formula="${DOTFILES_TEST_SMOKE_TAP_FORMULA:-}"
-  [ -n "$tap_formula" ] || tap_formula=$(grep -qE '^brew "yakitrak/yakitrak/obsidian-cli"' "$bf" && echo yakitrak/yakitrak/obsidian-cli \
+  [ -n "$tap_formula" ] || tap_formula=$(grep -qE '^brew "yakitrak/yakitrak/notesmd-cli"' "$bf" && echo yakitrak/yakitrak/notesmd-cli \
     || sed -nE 's/^brew "([^"\/]+\/[^"\/]+\/[^"\/]+)".*/\1/p' "$bf" | head -1)
 
   echo "brew \"$formula\""
