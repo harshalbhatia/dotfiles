@@ -9,9 +9,7 @@
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true,
     "frontend-design@claude-plugins-official": true,
-    "codex@openai-codex": true,
-    "chrome-devtools-mcp@claude-plugins-official": true,
-    "product-management@knowledge-work-plugins": true
+    "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
     "openai-codex": {
@@ -19,25 +17,13 @@
         "source": "github",
         "repo": "openai/codex-plugin-cc"
       }
-    },
-    "chrome-devtools-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "ChromeDevTools/chrome-devtools-mcp"
-      }
-    },
-    "knowledge-work-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/knowledge-work-plugins"
-      }
     }
   },
   "outputStyle": "default",
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
   "showThinkingSummaries": true,
-  // "skipDangerousModePermissionPrompt": true,
+  "skipDangerousModePermissionPrompt": true,
   "theme": "auto",
   "tui": "fullscreen"
 }
