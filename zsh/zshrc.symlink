@@ -98,7 +98,9 @@ export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 export PATH="$HOME/.antigravity/antigravity/bin:$PATH"
 
 # Added by aisw
-eval "$(aisw shell-hook zsh)"
+if command -v aisw >/dev/null 2>&1; then
+  eval "$(aisw shell-hook zsh)"
+fi
 
 # Keep mise-managed tools ahead of later PATH additions.
 if command -v mise >/dev/null 2>&1; then
