@@ -2,6 +2,7 @@
   "env": {
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
   },
+  "model": "opus",
   "statusLine": {
     "type": "command",
     "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '.cwd // empty' | sed \"s|^$HOME|~|\"); style=$(echo \"$input\" | jq -r '.output_style.name // empty'); ctx=$(echo \"$input\" | jq -r '.context_window.remaining_percentage // empty'); model=$(echo \"$input\" | jq -r '.model.display_name // empty'); effort=$(echo \"$input\" | jq -r '.effort.level // empty'); cost=$(echo \"$input\" | jq -r '.cost.total_cost_usd // 0'); branch=$(git -C \"$(echo \"$input\" | jq -r '.cwd // \".\"')\" branch --show-current 2>/dev/null); parts=''; if [ -n \"$cwd\" ] && [ -n \"$branch\" ]; then parts=\"$cwd [$branch]\"; elif [ -n \"$cwd\" ]; then parts=\"$cwd\"; fi; if [ -n \"$style\" ]; then parts=\"$parts | $style\"; fi; if [ -n \"$ctx\" ]; then parts=\"$parts | ${ctx}% ctx left\"; fi; mshort=$(echo \"$model\" | awk '{s=tolower(substr($1,1,1)); for(i=2;i<=NF;i++) s=s $i; print s}'); case \"$effort\" in low) es=l;; medium) es=m;; high) es=h;; xhigh) es=xh;; max) es=max;; ultra*) es=ultra;; *) es=\"$effort\";; esac; if [ -n \"$mshort\" ]; then seg=\"$mshort\"; [ -n \"$es\" ] && seg=\"$seg/$es\"; parts=\"$parts | $seg\"; fi; cost_fmt=$(printf \"$%.2f\" \"$cost\"); parts=\"$parts | $cost_fmt\"; echo \"$parts\""
@@ -21,10 +22,10 @@
   },
   "outputStyle": "default",
   "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "tui": "fullscreen",
   "showThinkingSummaries": true,
   "skipDangerousModePermissionPrompt": true,
-  "theme": "auto",
-  "model": "claude-fable-5[1m]"
+  "skipWorkflowUsageWarning": true,
+  "theme": "auto"
 }
